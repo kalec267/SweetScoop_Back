@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/03/mybatis-3-mapper.dtd">
+<mapper namespace="com.sweetscoop.payment.repository.OrderMapper">
+
+    <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ORDERS (
+            customer_id, branch_id, kiosk_id, order_type, language, 
+            status, created_at, waiting_no, receipt_no, total_price, coupon_used
+        ) VALUES (
+            #{customerId}, #{branchId}, #{kioskId}, #{orderType}, #{language}, 
+            '결제대기', NOW(), NULL, 
+            CONCAT('REC-', DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), '-', LPAD(FLOOR(RAND()*1000), 3, '0')), 
+            #{totalPrice}, FALSE
+        )
+    </insert>
+
+</mapper>
