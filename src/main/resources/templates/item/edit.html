@@ -1,0 +1,35 @@
+<body>
+
+<h1>품목 수정</h1>
+
+<form th:action="@{/items/{id}/edit(id=${item.id})}"
+      th:object="${item}"
+      method="post">
+
+
+    <div>
+        <label>카테고리 ID</label>
+        <input type="number" th:field="*{categoryId}">
+    </div>
+
+
+    <div>
+        <label>단위</label>
+        <input type="number" th:field="*{unit}">
+    </div>
+
+
+    <div>
+        <label>품목명</label>
+        <input type="text" th:field="*{itemName}">
+    </div>
+
+
+    <button type="submit">
+        수정
+    </button>
+
+</form>
+
+</body>
+</html>
