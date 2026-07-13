@@ -46,5 +46,8 @@ public class OrderRequestDTO {
 
 	// 결제 정보
 	private PaymentRequestDTO payment;
+	
+//	컵 사이즈
+	private Integer cupId;
 
 }

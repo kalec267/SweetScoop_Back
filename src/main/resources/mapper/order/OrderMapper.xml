@@ -4,147 +4,203 @@
 PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
+
 <mapper namespace="com.sweetscoop.order.mapper.OrderMapper">
 
-    <!-- 주문 저장 -->
-    <insert id="insertOrder"
-		    parameterType="com.sweetscoop.order.model.OrderVO"    
-            useGeneratedKeys="true"
-            keyProperty="id">
 
-        INSERT INTO ORDERS
-        (
-            customer_id,
-            branch_id,
-            kiosk_id,
-            order_type,
-            language,
-            status,
-            created_at,
-            waiting_no,
-            receipt_no,
-            total_price,
-            coupon_used
-        )
-        VALUES
-        (
-            #{customerId},
-            #{branchId},
-            #{kioskId},
-            #{orderType},
-            #{language},
-            #{status},
-            #{createdAt},
-            #{waitingNo},
-            #{receiptNo},
-            #{totalPrice},
-            #{couponUsed}
-        )
+	<!-- 주문 저장 -->
+	<insert id="insertOrder"
+		parameterType="com.sweetscoop.order.model.OrderVO"
+		useGeneratedKeys="true" keyProperty="id">
 
-    </insert>
 
-    <!-- 주문 상품 저장 -->
-    <insert id="insertOrderItem"
-            parameterType="com.sweetscoop.order.model.OrderItemVO"
-            useGeneratedKeys="true"
-            keyProperty="id">
+		INSERT INTO ORDERS
+		(
+		CUSTOMER_ID,
+		BRANCH_ID,
+		KIOSK_ID,
+		ORDER_TYPE,
+		LANGUAGE,
+		STATUS,
+		CREATED_AT,
+		WAITING_NO,
+		RECEIPT_NO,
+		TOTAL_PRICE,
+		COUPON_USED
+		)
 
-        INSERT INTO ORDERITEM
-        (
-            order_id,
-            cup_id,
-            size_id,
-            quantity,
-            total_price
-        )
-        VALUES
-        (
-            #{orderId},
-            #{cupId},
-            #{sizeId},
-            #{quantity},
-            #{totalPrice}
-        )
+		VALUES
+		(
+		#{customerId},
+		#{branchId},
+		#{kioskId},
+		#{orderType},
+		#{language},
+		#{status},
+		#{createdAt},
+		#{waitingNo},
+		#{receiptNo},
+		#{totalPrice},
+		#{couponUsed}
+		)
 
-    </insert>
 
-    <!-- 주문 맛 저장 -->
-    <insert id="insertOrderItemMenu"
-            parameterType="com.sweetscoop.order.model.OrderItemMenuVO"
-            useGeneratedKeys="true"
-            keyProperty="id">
+	</insert>
 
-        INSERT INTO ORDERITEMMENU
-        (
-            order_item_id,
-            menu_id
-        )
-        VALUES
-        (
-            #{orderItemId},
-            #{menuId}
-        )
 
-    </insert>
 
-    <!-- 주문 옵션 저장 -->
-    <insert id="insertOrderItemOption"
-            parameterType="com.sweetscoop.order.model.OrderItemOptionVO"
-            useGeneratedKeys="true"
-            keyProperty="id">
 
-        INSERT INTO ORDERITEMOPTION
-        (
-            order_item_id,
-            menu_option_id
-        )
-        VALUES
-        (
-            #{orderItemId},
-            #{menuOptionId}
-        )
+	<!-- 주문 상품 저장 -->
 
-    </insert>
+	<insert id="insertOrderItem"
+		parameterType="com.sweetscoop.order.model.OrderItemVO"
+		useGeneratedKeys="true" keyProperty="id">
 
-    <!-- 주문 1건 조회 -->
-    <select id="selectOrder"
-            parameterType="int"
-            resultType="com.sweetscoop.order.model.OrderVO">
 
-        SELECT *
-        FROM ORDERS
-        WHERE id = #{id}
+		INSERT INTO ORDERITEM
+		(
+		ORDER_ID,
+		CUP_ID,
+		SIZE_ID,
+		QUANTITY,
+		TOTAL_PRICE
+		)
 
-    </select>
 
-    <!-- 주문 목록 조회 -->
-    <select id="selectOrderList"
-            resultType="com.sweetscoop.order.model.OrderVO">
+		VALUES
+		(
+		#{orderId},
+		#{cupId},
+		#{sizeId},
+		#{quantity},
+		#{totalPrice}
+		)
 
-        SELECT *
-        FROM ORDERS
-        ORDER BY created_at DESC
 
-    </select>
+	</insert>
 
-    <!-- 주문 상태 변경 -->
-    <update id="updateOrderStatus"
-            parameterType="com.sweetscoop.order.model.OrderVO">
 
-        UPDATE ORDERS
-        SET status = #{status}
-        WHERE id = #{id}
 
-    </update>
 
-    <!-- 주문 삭제 -->
-    <delete id="deleteOrder"
-            parameterType="int">
+	<!-- 주문 맛 저장 -->
 
-        DELETE
-        FROM ORDERS
-        WHERE id = #{id}
+	<insert id="insertOrderItemMenu"
+		parameterType="com.sweetscoop.order.model.OrderItemMenuVO"
+		useGeneratedKeys="true" keyProperty="id">
 
-    </delete>
+
+		INSERT INTO ORDERITEMMENU
+		(
+		ORDER_ITEM_ID,
+		MENU_ID
+		)
+
+
+		VALUES
+		(
+		#{orderItemId},
+		#{menuId}
+		)
+
+
+	</insert>
+
+
+
+
+	<!-- 주문 옵션 저장 -->
+
+	<insert id="insertOrderItemOption"
+		parameterType="com.sweetscoop.order.model.OrderItemOptionVO"
+		useGeneratedKeys="true" keyProperty="id">
+
+
+		INSERT INTO ORDERITEMOPTION
+		(
+		ORDER_ITEM_ID,
+		MENU_OPTION_ID
+		)
+
+
+		VALUES
+		(
+		#{orderItemId},
+		#{menuOptionId}
+		)
+
+
+	</insert>
+
+
+
+
+	<!-- 주문 1건 조회 -->
+
+	<select id="selectOrder" parameterType="int"
+		resultType="com.sweetscoop.order.model.OrderVO">
+
+
+		SELECT *
+
+		FROM ORDERS
+
+		WHERE ID = #{id}
+
+
+	</select>
+
+
+
+
+	<!-- 주문 목록 조회 -->
+
+	<select id="selectOrderList"
+		resultType="com.sweetscoop.order.model.OrderVO">
+
+
+		SELECT *
+
+		FROM ORDERS
+
+		ORDER BY CREATED_AT DESC
+
+
+	</select>
+
+
+
+
+	<!-- 주문 상태 변경 -->
+
+	<update id="updateOrderStatus"
+		parameterType="com.sweetscoop.order.model.OrderVO">
+
+
+		UPDATE ORDERS
+
+		SET STATUS = #{status}
+
+		WHERE ID = #{id}
+
+
+	</update>
+
+
+
+
+	<!-- 주문 삭제 -->
+
+	<delete id="deleteOrder" parameterType="int">
+
+
+		DELETE
+
+		FROM ORDERS
+
+		WHERE ID = #{id}
+
+
+	</delete>
+
 
 </mapper>

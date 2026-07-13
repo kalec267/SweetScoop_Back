@@ -2,7 +2,7 @@ package com.sweetscoop.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -12,18 +12,18 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-	    System.out.println("★★★★★ SecurityConfig 적용됨 ★★★★★");
+		http.csrf(csrf -> csrf.disable())
 
-	    http
-	        .csrf(csrf -> csrf.disable())
-	        .httpBasic(Customizer.withDefaults());
+				.authorizeHttpRequests(auth -> auth
 
-	    http
-	        .authorizeHttpRequests(auth -> auth
-	            .requestMatchers("/api/order/**").permitAll()
-	            .anyRequest().authenticated()
-	        );
+						// Vue에서 접근하는 API 허용
+						.requestMatchers("/api/**").permitAll()
 
-	    return http.build();
+						// 나머지는 허용
+						.anyRequest().permitAll());
+
+		return http.build();
+
 	}
+
 }

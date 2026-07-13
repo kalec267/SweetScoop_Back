@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.sweetscoop.size.repository.SizeDAO">
+
+    <!-- 카테고리별 사이즈 조회 -->
+    <select id="findByCategory"
+            parameterType="int"
+            resultType="com.sweetscoop.size.dto.SizeDTO">
+
+        SELECT
+            id,
+            category_id,
+            name,
+            flavor_cnt,
+            price,
+            total_weight_g,
+            size_img
+        FROM SIZE
+        WHERE category_id = #{categoryId}
+
+    </select>
+
+    <!-- 사이즈 상세 조회 -->
+    <select id="findById"
+            parameterType="int"
+            resultType="com.sweetscoop.size.dto.SizeDTO">
+
+        SELECT
+            id,
+            category_id,
+            name,
+            flavor_cnt,
+            price,
+            total_weight_g,
+            size_img
+        FROM SIZE
+        WHERE id = #{id}
+
+    </select>
+
+</mapper>
