@@ -15,7 +15,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		id,
 		category_id,
 		name,
+		price,
 		menu_img
+		
 		FROM MENU
 
 	</select>
@@ -30,6 +32,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		category_id,
 		item_id,
 		name,
+		price,
 		menu_img
 		FROM MENU
 		WHERE id = #{id}
@@ -46,6 +49,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		category_id,
 		item_id,
 		name,
+		price,
 		menu_img
 		FROM MENU
 		WHERE category_id = #{categoryId}

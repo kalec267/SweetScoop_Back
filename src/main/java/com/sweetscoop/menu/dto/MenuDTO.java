@@ -6,11 +6,9 @@ import lombok.Data;
 public class MenuDTO {
 
     private Integer id;
-
     private Integer categoryId;
-
     private String name;
-
     private String menuImg;
+    private Integer price;
 
 }
