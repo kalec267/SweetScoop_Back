@@ -16,12 +16,13 @@ public class Item {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "category_id")
+    @Column(name = "category_id", nullable = false)
     private Integer categoryId;
 
+    @Column(nullable = false)
     private Integer unit;
 
-    @Column(name = "item_name")
+    @Column(name = "item_name", nullable = false, length = 50)
     private String itemName;
     
 }
