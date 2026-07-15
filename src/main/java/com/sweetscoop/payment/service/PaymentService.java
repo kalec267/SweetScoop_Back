@@ -22,6 +22,9 @@ public class PaymentService {
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> processTossPayment(PaymentRequestDTO dto) throws Exception {
         
+    	// 💡 로그 추가: 프론트에서 넘어온 orderId가 무엇인지 정확히 확인
+        System.out.println("디버깅 - 결제 요청된 orderId: " + dto.getOrderId());
+    	
         // 1. ORDERS 레코드에 비관적 락(FOR UPDATE)을 걸어 다중 결제 요청 및 동시성 차단
         Map<String, Object> order = paymentMapper.selectOrderForUpdate(dto.getOrderId());
         if (order == null) throw new Exception("존재하지 않는 주문 번호입니다.");

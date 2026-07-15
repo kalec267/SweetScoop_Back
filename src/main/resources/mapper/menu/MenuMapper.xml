@@ -49,7 +49,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		category_id,
 		item_id,
 		name,
-		price,
 		menu_img
 		FROM MENU
 		WHERE category_id = #{categoryId}
