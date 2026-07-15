@@ -1,29 +1,81 @@
 package com.sweetscoop.global.config;
 
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
+@EnableWebSecurity
 public class SecurityConfig {
 
-	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http) throws Exception {
 
-		http.csrf(csrf -> csrf.disable())
+        http
+            .cors(cors -> cors.configurationSource(
+                corsConfigurationSource()
+            ))
+            .csrf(csrf -> csrf.disable())
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable())
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(
+                    "/api/**",
+                    "/inventory/**",
+                    "/sales/**"
+                ).permitAll()
+                .anyRequest().permitAll()
+            );
 
-				.authorizeHttpRequests(auth -> auth
+        return http.build();
+    }
 
-						// Vue에서 접근하는 API 허용
-						.requestMatchers("/api/**").permitAll()
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
 
-						// 나머지는 허용
-						.anyRequest().permitAll());
+        CorsConfiguration configuration =
+            new CorsConfiguration();
 
-		return http.build();
+        configuration.setAllowedOrigins(
+            List.of(
+                "http://localhost:5173",
+                "http://localhost:5174"
+            )
+        );
 
-	}
+        configuration.setAllowedMethods(
+            List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+            )
+        );
 
+        configuration.setAllowedHeaders(
+            List.of("*")
+        );
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+            new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration(
+            "/**",
+            configuration
+        );
+
+        return source;
+    }
 }
