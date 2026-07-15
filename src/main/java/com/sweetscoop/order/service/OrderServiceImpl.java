@@ -26,110 +26,60 @@ public class OrderServiceImpl implements OrderService {
 
 	// 주문 생성
 	@Override
-	public void createOrder(OrderRequestDTO request) {
+	public Integer createOrder(OrderRequestDTO request) {
 
-		/*
-		 * 1. ORDERS 저장
-		 */
+	    OrderVO order = new OrderVO();
 
-		OrderVO order = new OrderVO();
+	    order.setCustomerId(request.getCustomerId());
+	    order.setBranchId(request.getBranchId());
+	    order.setKioskId(request.getKioskId());
+	    order.setOrderType(request.getOrderType());
+	    order.setLanguage(request.getLanguage());
+	    order.setStatus(request.getStatus());
+	    order.setCreatedAt(request.getCreatedAt());
+	    order.setWaitingNo(request.getWaitingNo());
+	    order.setReceiptNo(request.getReceiptNo());
+	    order.setTotalPrice(request.getTotalPrice());
+	    order.setCouponUsed(request.getCouponUsed());
 
-		order.setCustomerId(request.getCustomerId());
-		order.setBranchId(request.getBranchId());
-		order.setKioskId(request.getKioskId());
+	    orderDAO.insertOrder(order);
 
-		order.setOrderType(request.getOrderType());
-		order.setLanguage(request.getLanguage());
-		order.setStatus(request.getStatus());
+	    Integer orderId = order.getId();
 
-		order.setCreatedAt(request.getCreatedAt());
+	    for (OrderItemRequestDTO item : request.getItems()) {
 
-		order.setWaitingNo(request.getWaitingNo());
-		order.setReceiptNo(request.getReceiptNo());
+	        OrderItemVO orderItem = new OrderItemVO();
 
-		order.setTotalPrice(request.getTotalPrice());
+	        orderItem.setOrderId(orderId);
+	        orderItem.setCupId(item.getCupId());
+	        orderItem.setSizeId(item.getSizeId());
+	        orderItem.setQuantity(item.getQuantity());
+	        orderItem.setTotalPrice(item.getTotalPrice());
 
-		order.setCouponUsed(request.getCouponUsed());
+	        orderDAO.insertOrderItem(orderItem);
 
-		orderDAO.insertOrder(order);
+	        Integer orderItemId = orderItem.getId();
 
-		// 생성된 주문 번호
-		Integer orderId = order.getId();
+	        for (MenuRequestDTO menu : item.getMenus()) {
+	            OrderItemMenuVO menuVO = new OrderItemMenuVO();
 
-		/*
-		 * 2. ORDERITEM 저장
-		 */
+	            menuVO.setOrderItemId(orderItemId);
+	            menuVO.setMenuId(menu.getMenuId());
 
-		for (OrderItemRequestDTO item : request.getItems()) {
+	            orderDAO.insertOrderItemMenu(menuVO);
+	        }
 
-			OrderItemVO orderItem = new OrderItemVO();
+	        for (OptionRequestDTO option : item.getOptions()) {
+	            OrderItemOptionVO optionVO = new OrderItemOptionVO();
 
-			orderItem.setOrderId(orderId);
+	            optionVO.setOrderItemId(orderItemId);
+	            optionVO.setMenuOptionId(option.getMenuOptionId());
 
-			orderItem.setCupId(item.getCupId());
+	            orderDAO.insertOrderItemOption(optionVO);
+	        }
+	    }
 
-			orderItem.setSizeId(item.getSizeId());
-
-			orderItem.setQuantity(item.getQuantity());
-
-			orderItem.setTotalPrice(item.getTotalPrice());
-
-			orderDAO.insertOrderItem(orderItem);
-
-			// 생성된 주문상품 번호
-			Integer orderItemId = orderItem.getId();
-
-			/*
-			 * 3. ORDERITEMMENU 저장
-			 */
-
-			for (MenuRequestDTO menu : item.getMenus()) {
-
-				OrderItemMenuVO menuVO = new OrderItemMenuVO();
-
-				menuVO.setOrderItemId(orderItemId);
-
-				menuVO.setMenuId(menu.getMenuId());
-
-				orderDAO.insertOrderItemMenu(menuVO);
-
-			}
-
-			/*
-			 * 4. ORDERITEMOPTION 저장
-			 */
-
-			for (OptionRequestDTO option : item.getOptions()) {
-
-				OrderItemOptionVO optionVO = new OrderItemOptionVO();
-
-				optionVO.setOrderItemId(orderItemId);
-
-				optionVO.setMenuOptionId(option.getMenuOptionId());
-
-				orderDAO.insertOrderItemOption(optionVO);
-
-			}
-
-		}
-
-		/*
-		 * 5. PAYMENT 저장
-		 */
-
-		PaymentVO payment = new PaymentVO();
-
-		payment.setOrderId(orderId);
-
-		// PaymentVO 필드명은 method
-		payment.setMethod(request.getPayment().getPaymentMethod());
-
-		payment.setAmount(request.getPayment().getAmount());
-
-		payment.setPaymentStatus("SUCCESS");
-
-		orderDAO.insertPayment(payment);
-
+	    return orderId;
 	}
 
 	// 주문 조회

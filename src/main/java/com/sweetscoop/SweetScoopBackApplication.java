@@ -9,7 +9,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     "com.sweetscoop.order.repository",
     "com.sweetscoop.menu.repository",
     "com.sweetscoop.size.repository",
-    "com.sweetscoop.cup.repository"
+    "com.sweetscoop.cup.repository",
+    "com.sweetscoop.payment.repository"
 })
 public class SweetScoopBackApplication {
 
