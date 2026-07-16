@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/03/mybatis-3-mapper.dtd">
+<mapper namespace="com.sweetscoop.payment.repository.PaymentMapper">
+
+    <select id="selectOrderForUpdate" resultType="map">
+        SELECT id, status, total_price FROM ORDERS WHERE id = #{orderId} FOR UPDATE
+    </select>
+
+    <insert id="insertPayment">
+        INSERT INTO PAYMENT (
+            order_id, coupon_id, method, amount, card_company, 
+            payment_time, payment_status, pg_transaction_id, point_used, point_earned
+        ) VALUES (
+            #{payment.orderId}, #{payment.couponId}, #{payment.method}, #{payment.amount}, #{payment.cardCompany},
+            NOW(), '승인', #{pgId}, 0, 0
+        )
+    </insert>
+
+    <update id="updateOrderStatus">
+        UPDATE ORDERS SET status = #{status}, waiting_no = #{waitingNo} WHERE id = #{orderId}
+    </update>
+
+    <select id="selectReceiptDetails" resultType="map">
+        SELECT 
+            o.id AS orderId,
+            o.receipt_no AS receiptNo,
+            o.waiting_no AS waitingNo,
+            o.total_price AS totalPrice,
+            DATE_FORMAT(o.created_at, '%Y-%m-%d %H:%i:%s') AS orderTime,
+            p.method AS paymentMethod,
+            p.card_company AS cardCompany
+        FROM ORDERS o
+        LEFT JOIN PAYMENT p ON o.id = p.order_id
+        WHERE o.id = #{orderId}
+    </select>
+    
+    <select id="selectOrderItems" resultType="map">
+	    SELECT 
+	        m.name AS menuName, 
+	        oi.quantity AS quantity, 
+	        oi.total_price AS price 
+	    FROM ORDERITEM oi
+	    JOIN ORDERITEMMENU oim ON oi.id = oim.order_item_id
+	    JOIN MENU m ON oim.menu_id = m.id
+	    WHERE oi.order_id = #{orderId}
+	</select>
+
+</mapper>
