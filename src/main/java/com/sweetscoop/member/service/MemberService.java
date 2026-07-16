@@ -2,7 +2,6 @@ package com.sweetscoop.member.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,145 +19,199 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class MemberService {
 
-	private static final int REWARD_ORDER_THRESHOLD = 5;
-	private static final double REWARD_COUPON_VALUE = 5000.0;
-	private static final double POINT_RATE = 0.05;
+    private static final int REWARD_ORDER_THRESHOLD = 5;
+    private static final double REWARD_COUPON_VALUE = 5000.0;
+    private static final double POINT_RATE = 0.05;
 
-	private final MemberRepository memberRepository;
-	private final CouponRepository couponRepository;
+    // CUSTOMER.id = 1은 회원 유형
+    private static final int MEMBER_CUSTOMER_ID = 1;
 
-	public List<MemberDto> getAllMembers() {
-		return memberRepository.findAll().stream().map(MemberDto::new).toList();
-	}
+    private final MemberRepository memberRepository;
+    private final CouponRepository couponRepository;
 
-	/*
-	 * 전화번호 입력 시: 기존 회원 조회 또는 신규 회원 자동 가입
-	 *
-	 * 이 단계에서는 주문 횟수와 포인트를 변경하지 않음
-	 */
-	@Transactional
-	public MemberDto processMemberCheckIn(Integer customerId, String phoneNumber) {
+    public List<MemberDto> getAllMembers() {
+        return memberRepository.findAll()
+                .stream()
+                .map(MemberDto::new)
+                .toList();
+    }
 
-		String normalizedPhone = phoneNumber.replaceAll("[^0-9]", "");
+    /*
+     * 전화번호 입력 시:
+     * 기존 회원 조회 또는 신규 회원 자동 가입
+     *
+     * 이 단계에서는 주문 횟수와 포인트를 변경하지 않음
+     */
+    @Transactional
+    public MemberDto processMemberCheckIn(
+            Integer customerId,
+            String phoneNumber) {
 
-		Optional<Member> existingMember = memberRepository.findByPhoneNumber(normalizedPhone);
+        String normalizedPhone =
+                normalizePhoneNumber(phoneNumber);
 
-		if (existingMember.isPresent()) {
+        if (normalizedPhone.length() != 11) {
+            throw new IllegalArgumentException(
+                    "전화번호 11자리를 입력해주세요."
+            );
+        }
 
-			// 기존 회원은 조회만 하고 아무 값도 변경하지 않음
-			Member member = existingMember.get();
+        return memberRepository
+                .findByPhoneNumber(normalizedPhone)
+                .map(MemberDto::new)
+                .orElseGet(() ->
+                        createMember(normalizedPhone)
+                );
+    }
 
-			return new MemberDto(member);
+    /*
+     * 신규 회원 자동 가입
+     */
+    private MemberDto createMember(
+            String phoneNumber) {
 
-		} else {
+        Member newMember = new Member();
 
-			// 신규 회원 자동 가입
-			Member newMember = new Member();
+        /*
+         * 현재 설계:
+         * CUSTOMER.id = 1 → 회원
+         */
+        newMember.setCustomerId(MEMBER_CUSTOMER_ID);
+        newMember.setPhoneNumber(phoneNumber);
 
-			newMember.setCustomerId(1); // 회원 유형
-			newMember.setPhoneNumber(normalizedPhone);
+        // 결제 전이므로 주문 횟수는 0
+        newMember.setOrderCount(0);
+        newMember.setPoint(0);
+        newMember.setCreatedAt(LocalDateTime.now());
 
-			// 아직 결제 전이므로 주문 횟수는 0
-			newMember.setOrderCount(0);
+        Member savedMember =
+                memberRepository.save(newMember);
 
-			newMember.setPoint(0);
-			newMember.setCreatedAt(LocalDateTime.now());
+        /*
+         * 신규 회원 웰컴 쿠폰 발급
+         */
+        Coupon welcomeCoupon = new Coupon();
 
-			Member savedMember = memberRepository.save(newMember);
+        welcomeCoupon.setMemberId(savedMember.getId());
+        welcomeCoupon.setName(
+                "신규 가입 축하 3,000원 할인권"
+        );
+        welcomeCoupon.setIssueDate(
+                LocalDateTime.now()
+        );
+        welcomeCoupon.setExpiryDate(
+                LocalDateTime.now().plusMonths(1)
+        );
+        welcomeCoupon.setDiscountValue(3000.0);
+        welcomeCoupon.setIsUsed(false);
 
-			Coupon welcomeCoupon = new Coupon();
+        couponRepository.save(welcomeCoupon);
 
-			welcomeCoupon.setMemberId(savedMember.getId());
-			welcomeCoupon.setName("신규 가입 축하 3,000원 할인권");
-			welcomeCoupon.setIssueDate(LocalDateTime.now());
-			welcomeCoupon.setExpiryDate(LocalDateTime.now().plusMonths(1));
-			welcomeCoupon.setDiscountValue(3000.0);
-			welcomeCoupon.setIsUsed(false);
+        return new MemberDto(savedMember);
+    }
 
-			couponRepository.save(welcomeCoupon);
+    /*
+     * 결제 성공 후 호출
+     */
+    @Transactional
+    public MemberDto rewardAfterPayment(
+            Integer memberId,
+            Integer paymentAmount) {
 
-			return new MemberDto(savedMember);
-		}
-	}
+        if (memberId == null) {
+            throw new IllegalArgumentException(
+                    "회원 ID가 필요합니다."
+            );
+        }
 
-	/*
-	 * 신규 회원 자동 가입
-	 */
-	private MemberDto createMember(Integer customerId, String phoneNumber) {
+        if (paymentAmount == null ||
+            paymentAmount <= 0) {
 
-		if (customerId == null) {
-			throw new IllegalArgumentException("고객 ID가 필요합니다.");
-		}
+            throw new IllegalArgumentException(
+                    "결제 금액이 올바르지 않습니다."
+            );
+        }
 
-		Member newMember = new Member();
+        Member member =
+                memberRepository.findById(memberId)
+                        .orElseThrow(() ->
+                                new IllegalArgumentException(
+                                        "존재하지 않는 회원입니다."
+                                )
+                        );
 
-		newMember.setCustomerId(customerId);
-		newMember.setPhoneNumber(phoneNumber);
-		newMember.setOrderCount(0);
-		newMember.setPoint(0);
-		newMember.setCreatedAt(LocalDateTime.now());
+        int currentOrderCount =
+                member.getOrderCount() == null
+                        ? 0
+                        : member.getOrderCount();
 
-		Member savedMember = memberRepository.save(newMember);
+        int currentPoint =
+                member.getPoint() == null
+                        ? 0
+                        : member.getPoint();
 
-		/*
-		 * 신규 회원 웰컴 쿠폰 발급
-		 */
-		Coupon welcomeCoupon = new Coupon();
+        int nextOrderCount =
+                currentOrderCount + 1;
 
-		welcomeCoupon.setMemberId(savedMember.getId());
-		welcomeCoupon.setName("신규 가입 축하 3,000원 할인권");
-		welcomeCoupon.setIssueDate(LocalDateTime.now());
-		welcomeCoupon.setExpiryDate(LocalDateTime.now().plusMonths(1));
-		welcomeCoupon.setDiscountValue(3000.0);
-		welcomeCoupon.setIsUsed(false);
+        int earnedPoint =
+                (int) Math.floor(
+                        paymentAmount * POINT_RATE
+                );
 
-		couponRepository.save(welcomeCoupon);
+        member.setOrderCount(nextOrderCount);
+        member.setPoint(
+                currentPoint + earnedPoint
+        );
 
-		return new MemberDto(savedMember);
-	}
+        /*
+         * 5회, 10회, 15회마다 쿠폰 발급
+         */
+        if (
+            nextOrderCount
+            % REWARD_ORDER_THRESHOLD
+            == 0
+        ) {
+            Coupon rewardCoupon = new Coupon();
 
-	/*
-	 * 결제 성공 후 호출
-	 */
-	@Transactional
-	public MemberDto rewardAfterPayment(Integer memberId, Integer paymentAmount) {
+            rewardCoupon.setMemberId(member.getId());
 
-		Member member = memberRepository.findById(memberId)
-				.orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+            rewardCoupon.setName(
+                    String.format(
+                            "단골 감사 %d회 주문 기념 할인권",
+                            nextOrderCount
+                    )
+            );
 
-		int currentOrderCount = member.getOrderCount() == null ? 0 : member.getOrderCount();
+            rewardCoupon.setIssueDate(
+                    LocalDateTime.now()
+            );
 
-		int currentPoint = member.getPoint() == null ? 0 : member.getPoint();
+            rewardCoupon.setExpiryDate(
+                    LocalDateTime.now().plusMonths(3)
+            );
 
-		int nextOrderCount = currentOrderCount + 1;
+            rewardCoupon.setDiscountValue(
+                    REWARD_COUPON_VALUE
+            );
 
-		int earnedPoint = (int) Math.floor(paymentAmount * 0.05);
+            rewardCoupon.setIsUsed(false);
 
-		member.setOrderCount(nextOrderCount);
-		member.setPoint(currentPoint + earnedPoint);
+            couponRepository.save(rewardCoupon);
+        }
 
-		if (nextOrderCount % REWARD_ORDER_THRESHOLD == 0) {
-			Coupon rewardCoupon = new Coupon();
+        return new MemberDto(member);
+    }
 
-			rewardCoupon.setMemberId(member.getId());
-			rewardCoupon.setName(String.format("단골 감사 %d회 주문 기념 할인권", nextOrderCount));
-			rewardCoupon.setIssueDate(LocalDateTime.now());
-			rewardCoupon.setExpiryDate(LocalDateTime.now().plusMonths(3));
-			rewardCoupon.setDiscountValue(REWARD_COUPON_VALUE);
-			rewardCoupon.setIsUsed(false);
+    private String normalizePhoneNumber(
+            String phoneNumber) {
 
-			couponRepository.save(rewardCoupon);
-		}
+        if (phoneNumber == null) {
+            return "";
+        }
 
-		return new MemberDto(member);
-	}
-
-	private String normalizePhoneNumber(String phoneNumber) {
-
-		if (phoneNumber == null) {
-			return "";
-		}
-
-		return phoneNumber.replaceAll("[^0-9]", "");
-	}
+        return phoneNumber.replaceAll(
+                "[^0-9]",
+                ""
+        );
+    }
 }
