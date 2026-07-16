@@ -1,5 +1,6 @@
 package com.sweetscoop.admin.repository;
 
+import com.sweetscoop.admin.entity.Branch;
 import com.sweetscoop.admin.entity.BranchInventory;
 import com.sweetscoop.admin.entity.BranchInventoryId; // 👈 복합키 클래스 임포트
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,5 @@ public interface BranchInventoryRepository extends JpaRepository<BranchInventory
     
     @Query("select bi from BranchInventory bi join fetch bi.item where bi.branch.id = :branchId")
     List<BranchInventory> findByBranchIdWithItem(@Param("branchId") Integer branchId);
+
 }

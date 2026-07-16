@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.sweetscoop.admin.dto.request.BranchSaveRequestDto;
 import com.sweetscoop.admin.dto.response.BranchResponse;
 import com.sweetscoop.admin.entity.BranchInventory;
+import com.sweetscoop.admin.entity.HqInventory;
 import com.sweetscoop.admin.repository.BranchInventoryRepository;
 import com.sweetscoop.admin.repository.HqInventoryRepository;
 
@@ -33,7 +34,8 @@ import lombok.extern.slf4j.Slf4j;
 public class BranchAdminController {
 	
 	private final BranchInventoryRepository branchInventoryRepository;
-    private final HqInventoryRepository hqInventoryRepository;
+	// 💡 [수정 완료] 빈 등록 오류를 유발하던 불필요한 HqInventory 필드 선언을 완전히 삭제했습니다.
+	private final HqInventoryRepository hqInventoryRepository;
 	
     // 1. 분점 전체 조회
     @GetMapping
@@ -65,7 +67,7 @@ public class BranchAdminController {
         return ResponseEntity.ok("분점 정보가 삭제되었습니다.");
     }
     
- // 1. 특정 지점의 실시간 원자재 재고 조회 (AS-002)
+    // 1. 특정 지점의 실시간 원자재 재고 조회 (AS-002)
     @GetMapping("/{branchId}/inventory")
     public ResponseEntity<List<BranchInventory>> getBranchInventory(@PathVariable Integer branchId) {
         log.info("[Branch API] 지점 재고 조회 요청 수신 - 지점 ID: {}", branchId);
@@ -82,20 +84,63 @@ public class BranchAdminController {
     public ResponseEntity<String> createOrderRequest(@RequestBody Map<String, Object> payload) {
         log.info("[Branch API] 본사 발주 신청 요청 수신 - Payload: {}", payload);
 
-        // 프론트엔드에서 넘겨준 파라미터 파싱
+        // 1. 파라미터 파싱
         Integer branchId = Integer.parseInt(payload.get("branchId").toString());
         Integer itemId = Integer.parseInt(payload.get("itemId").toString());
         Integer quantity = Integer.parseInt(payload.get("quantity").toString());
 
-        log.info("[Branch API] 발주 데이터 파싱 성공 -> 지점: {}, 아이템: {}, 수량: {}개", branchId, itemId, quantity);
+        try {
+            // 2. 기존 지점 재고 조회 쿼리를 통해 영속화된 객체 정보 획득
+            List<BranchInventory> tempInventory = branchInventoryRepository.findByBranchIdWithItem(branchId);
+            if (tempInventory.isEmpty()) {
+                return ResponseEntity.status(400).body("해당 지점의 재고 정보가 없어 발주 처리가 불가능합니다.");
+            }
 
-        // DB에 발주 데이터(HqInventory 등) 저장 트랜잭션 수행 로직 위치
-        // hqInventoryRepository.save(...);
+            com.sweetscoop.admin.entity.Branch targetBranch = tempInventory.get(0).getBranch();
 
-        // 실시간 알림 시스템 트리거 (이전 단계에서 작성한 SSE 호출)
-        SseController.sendNotification("스윗스쿱 강남역점에서 새로운 재고 신청이 등록되었습니다!");
-        log.info("[Branch API] 본사 관리자 대상 실시간 SSE 알림 브로드캐스트 발송 완료");
+            com.sweetscoop.admin.entity.Item targetItem = tempInventory.stream()
+                    .map(BranchInventory::getItem)
+                    .filter(item -> item.getId().equals(itemId))
+                    .findFirst()
+                    .orElse(null);
 
-        return ResponseEntity.ok("발주 신청이 성공적으로 등록되었습니다.");
+            if (targetItem == null) {
+                return ResponseEntity.status(400).body("지점 재고 정보에 등록되지 않은 원자재 아이템 코드입니다.");
+            }
+
+            // 3. 빌더 패턴을 사용하여 HqInventory 객체 구축 (role 조건 없이 데이터 삽입에만 집중)
+            com.sweetscoop.admin.entity.HqInventory hqOrder = com.sweetscoop.admin.entity.HqInventory.builder()
+                    .branch(targetBranch)             
+                    .item(targetItem)                 
+                    .requestQuantity(quantity)        
+                    .approvalStatus("대기중")         // 기본 상태 지정
+                    .deliveryStatus("준비중")         // 기본 상태 지정
+                    .build();
+
+            // 4. DB INSERT 실행
+            hqInventoryRepository.save(hqOrder);
+            log.info("[Branch API] DB 저장 성공 - 생성된 발주 ID: {}", hqOrder.getId());
+
+            // 5. 실시간 SSE 알림 전송
+            SseController.sendNotification("스윗스쿱 강남역점에서 새로운 재고 신청이 등록되었습니다!");
+
+            return ResponseEntity.ok("발주 신청이 성공적으로 등록되었습니다.");
+            
+        } catch (Exception e) {
+            log.error("[Branch API] 발주 저장 중 예외 발생!", e);
+            return ResponseEntity.status(500).body("서버 내부 저장 오류: " + e.getMessage());
+        }
+    }
+    
+    // 3. 특정 지점의 발주(재고 신청) 내역 조회 API 추가
+    @GetMapping("/{branchId}/orders")
+    public ResponseEntity<List<HqInventory>> getBranchOrders(@PathVariable Integer branchId) {
+        log.info("[Branch API] 지점 발주 내역 조회 요청 수신 - 지점 ID: {}", branchId);
+        
+        // 💡 [수정 완료] JPA 엔티티 속성에 정확히 부합하도록 findByBranch_Id 조회 방식으로 매핑 동기화
+        List<HqInventory> orders = hqInventoryRepository.findByBranch_Id(branchId);
+        
+        log.info("[Branch API] 지점 발주 내역 조회 완료 - 조회된 발주 건수: {}개", orders.size());
+        return ResponseEntity.ok(orders);
     }
 }

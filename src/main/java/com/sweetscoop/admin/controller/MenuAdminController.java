@@ -34,20 +34,20 @@ public class MenuAdminController {
 	private final SizeRepository sizeRepository;
 
     // 1. 메뉴 전체 조회 (진짜 DB 데이터 반환하도록 완성)
-    @GetMapping
+	@GetMapping
     public ResponseEntity<List<MenuDetailResponse>> getAllMenus() {
         List<Menu> menus = menuRepository.findAll();
         
-        // DB 엔티티 목록을 프론트엔드가 요구하는 DTO 포맷으로 가공
         List<MenuDetailResponse> response = menus.stream()
                 .map(m -> MenuDetailResponse.builder()
                         .id(m.getId())
                         .name(m.getName())
                         .menuImg(m.getMenuImg())
-                        // 아래 명칭들은 테이블 구조에 따라 m.getCategory().getName() 등으로 매핑하거나,
-                        // 단순 ID 필드라면 임시 스트링 처리 혹은 ID값 그대로 노출하도록 구성합니다.
                         .categoryName(String.valueOf(m.getCategoryId())) 
                         .itemName("물류 ID: " + m.getItemId())
+                        // 💡 [추가] 새로 추가한 ID 필드들에 엔티티의 값을 그대로 맵핑해 줍니다.
+                        .categoryId(m.getCategoryId())
+                        .itemId(m.getItemId())
                         .build())
                 .collect(Collectors.toList());
 
