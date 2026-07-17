@@ -17,7 +17,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		name,
 		price,
 		menu_img
-		
+
 		FROM MENU
 
 	</select>
@@ -45,13 +45,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		resultType="com.sweetscoop.menu.dto.MenuDTO">
 
 		SELECT
-		id,
-		category_id,
-		item_id,
-		name,
-		menu_img
-		FROM MENU
-		WHERE category_id = #{categoryId}
+		m.id,
+		m.category_id,
+		m.item_id,
+		m.name,
+		m.price,
+		m.menu_img
+		FROM MENU m
+		WHERE m.category_id = #{categoryId}
+		ORDER BY m.id
 
 	</select>
 

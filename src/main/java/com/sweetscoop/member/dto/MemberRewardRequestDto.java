@@ -8,7 +8,6 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class MemberRewardRequestDto {
-
     private Integer memberId;
     private Integer orderId;
     private Integer paymentAmount;

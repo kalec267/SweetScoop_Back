@@ -7,8 +7,9 @@ public class MenuDTO {
 
     private Integer id;
     private Integer categoryId;
+    private Integer itemId;
     private String name;
-    private String menuImg;
     private Integer price;
-
+    private String menuImg;
+    private String categoryName;
 }
