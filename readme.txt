@@ -7,4 +7,10 @@
 클라이언트(Vue)에서 전달하는 주문 데이터를 하나의 객체로 관리하기 위해 DTO 구조 설계
 주문 상세 데이터(List)를 객체 형태로 관리
 
-
+260717
+CORS 수정
+@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173"}) 추가 파일
+- LoginController.java
+- BranchAdminController.java
+- SseController.java
+- AdminBranchController.java

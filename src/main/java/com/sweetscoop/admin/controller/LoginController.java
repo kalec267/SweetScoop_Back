@@ -10,9 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/admin/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173"})
 @Slf4j
 public class LoginController {
 
@@ -20,6 +20,7 @@ public class LoginController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    	System.out.println("test----------------");
         log.info("[Login Controller] 로그인 시도 수신 - Role: {}, ID: {}", request.getRole(), request.getUsername());
 
         LoginResponse response = authService.authenticate(request);

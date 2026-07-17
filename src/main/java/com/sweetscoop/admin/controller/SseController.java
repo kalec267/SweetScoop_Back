@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/admin/sse")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173"})
 public class SseController {
 
     // 연결된 관리자 브라우저 세션들을 저장하는 맵
