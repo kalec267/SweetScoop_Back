@@ -1,86 +1,3 @@
-//package com.sweetscoop.global.config;
-//
-//import java.util.List;
-//
-//import org.springframework.context.annotation.Bean;
-//import org.springframework.context.annotation.Configuration;
-//import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-//import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-//import org.springframework.security.web.SecurityFilterChain;
-//import org.springframework.web.cors.CorsConfiguration;
-//import org.springframework.web.cors.CorsConfigurationSource;
-//import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-//
-//@Configuration
-//@EnableWebSecurity
-//public class SecurityConfig {
-//
-//    @Bean
-//    public SecurityFilterChain securityFilterChain(
-//            HttpSecurity http) throws Exception {
-//
-//        http
-//            .cors(cors -> cors.configurationSource(
-//                corsConfigurationSource()
-//            ))
-//            .csrf(csrf -> csrf.disable())
-//            .formLogin(form -> form.disable())
-//            .httpBasic(basic -> basic.disable())
-//            .authorizeHttpRequests(auth -> auth
-//                .requestMatchers(
-//                    "/api/**",
-//                    "/inventory/**",
-//                    "/sales/**"
-//                ).permitAll()
-//                .anyRequest().permitAll()
-//            );
-//
-//        return http.build();
-//    }
-//
-//    @Bean
-//    public CorsConfigurationSource corsConfigurationSource() {
-//
-//        CorsConfiguration configuration =
-//            new CorsConfiguration();
-//
-//        configuration.setAllowedOrigins(
-//            List.of(
-//                "http://localhost:5173",
-//                "http://localhost:5174"
-//            )
-//        );
-//
-//        configuration.setAllowedMethods(
-//            List.of(
-//                "GET",
-//                "POST",
-//                "PUT",
-//                "PATCH",
-//                "DELETE",
-//                "OPTIONS"
-//            )
-//        );
-//
-//        configuration.setAllowedHeaders(
-//            List.of("*")
-//        );
-//
-//        configuration.setAllowCredentials(true);
-//
-//        UrlBasedCorsConfigurationSource source =
-//            new UrlBasedCorsConfigurationSource();
-//
-//        source.registerCorsConfiguration(
-//            "/**",
-//            configuration
-//        );
-//
-//        return source;
-//    }
-//}
-
-
 package com.sweetscoop.global.config;
 
 import java.util.List;
@@ -89,9 +6,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.CorsUtils;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
@@ -100,19 +19,33 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http) throws Exception {
+            HttpSecurity http
+    ) throws Exception {
 
         http
-            .cors(cors -> cors.configurationSource(
-                    corsConfigurationSource()
-            ))
-            .csrf(csrf -> csrf.disable())
-            .formLogin(form -> form.disable())
-            .httpBasic(basic -> basic.disable())
+            // REST API 방식이므로 CSRF 비활성화
+            .csrf(AbstractHttpConfigurer::disable)
 
+            // CORS 설정 적용
+            .cors(cors -> cors.configurationSource(
+                corsConfigurationSource()
+            ))
+
+            // 기본 로그인 화면 비활성화
+            .formLogin(AbstractHttpConfigurer::disable)
+
+            // HTTP Basic 인증 비활성화
+            .httpBasic(AbstractHttpConfigurer::disable)
+
+            // 요청별 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
 
-                // Vue 정적 파일
+                // CORS 사전 요청 허용
+                .requestMatchers(request ->
+                    CorsUtils.isPreFlightRequest(request)
+                ).permitAll()
+
+                // Vue 정적 파일 허용
                 .requestMatchers(
                     "/",
                     "/index.html",
@@ -123,14 +56,19 @@ public class SecurityConfig {
                     "/error"
                 ).permitAll()
 
-                // 백엔드 API
+                // 관리자 API 허용
+                .requestMatchers(
+                    "/api/admin/**"
+                ).permitAll()
+
+                // 일반 백엔드 API 허용
                 .requestMatchers(
                     "/api/**",
                     "/inventory/**",
                     "/sales/**"
                 ).permitAll()
 
-                // 개발 단계에서는 모두 허용
+                // 개발 단계에서는 나머지 요청도 허용
                 .anyRequest().permitAll()
             );
 
@@ -141,35 +79,42 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration configuration =
-                new CorsConfiguration();
+            new CorsConfiguration();
 
-        configuration.setAllowedOriginPatterns(
-                List.of("*")
+        // Vue 개발 서버 주소
+        configuration.setAllowedOrigins(
+            List.of(
+                "http://localhost:5173",
+                "http://localhost:3000"
+            )
         );
 
         configuration.setAllowedMethods(
-                List.of(
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "PATCH",
-                    "DELETE",
-                    "OPTIONS"
-                )
+            List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+            )
         );
 
         configuration.setAllowedHeaders(
-                List.of("*")
+            List.of("*")
         );
 
         configuration.setAllowCredentials(true);
 
+        // 브라우저가 Preflight 결과를 1시간 저장
+        configuration.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
+            new UrlBasedCorsConfigurationSource();
 
         source.registerCorsConfiguration(
-                "/**",
-                configuration
+            "/**",
+            configuration
         );
 
         return source;
