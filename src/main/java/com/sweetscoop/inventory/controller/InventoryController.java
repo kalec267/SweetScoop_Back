@@ -1,9 +1,9 @@
 package com.sweetscoop.inventory.controller;
 
-import com.sweetscoop.inventory.entity.Branch;
-import com.sweetscoop.inventory.entity.HqStock;
-import com.sweetscoop.inventory.repository.BranchRepository;
-import com.sweetscoop.inventory.repository.HqStockRepository;
+import com.sweetscoop.inventory.entity.ScmBranch;
+import com.sweetscoop.inventory.entity.ScmHqStock;
+import com.sweetscoop.inventory.repository.ScmBranchRepository;
+import com.sweetscoop.inventory.repository.ScmHqStockRepository;
 import com.sweetscoop.inventory.service.InventoryService;
 
 import lombok.RequiredArgsConstructor;
@@ -19,8 +19,8 @@ import java.util.*;
 public class InventoryController {
 
     private final InventoryService inventoryService;
-    private final HqStockRepository hqStockRepository;
-    private final BranchRepository branchRepository;
+    private final ScmHqStockRepository hqStockRepository;
+    private final ScmBranchRepository branchRepository;
 
     // 지점별 재고 조회: 한글 품명과 카테고리가 맵 리스트 형태로 변환되어 프론트로
     @GetMapping("/branch/{branchId}")
@@ -69,9 +69,9 @@ public class InventoryController {
     public ResponseEntity<String> chargeHqStock(@RequestParam("itemId") Integer itemId, 
                                                 @RequestParam("amount") int amount) {
         try {
-            HqStock hqStock = hqStockRepository.findByItemId(itemId)
+            ScmHqStock hqStock = hqStockRepository.findByItemId(itemId)
                     .orElseGet(() -> {
-                        HqStock newStock = new HqStock();
+                        ScmHqStock newStock = new ScmHqStock();
                         newStock.setItemId(itemId);
                         newStock.setStockLevel(0);
                         return hqStockRepository.save(newStock);
@@ -97,7 +97,7 @@ public class InventoryController {
     @GetMapping("/hq/stock")
     public ResponseEntity<?> getHqStockList() {
         try {
-            List<HqStock> stocks = hqStockRepository.findAll();
+            List<ScmHqStock> stocks = hqStockRepository.findAll();
             return ResponseEntity.ok(stocks);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -107,7 +107,7 @@ public class InventoryController {
     
     //전체 지점 목록 조회 API
     @GetMapping("/branches")
-    public ResponseEntity<List<Branch>> getAllBranches() {
+    public ResponseEntity<List<ScmBranch>> getAllBranches() {
         // DB의 BRANCH 테이블에 있는 모든 레코드를 정렬(ID순)해서 그대로 반환합니다.
         return ResponseEntity.ok(branchRepository.findAll());
     }

@@ -4,18 +4,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweetscoop.inventory.entity.BranchInventory;
+import com.sweetscoop.inventory.entity.ScmBranchInventory;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface BranchInventoryRepository extends JpaRepository<BranchInventory, Integer> {
+public interface ScmBranchInventoryRepository extends JpaRepository<ScmBranchInventory, Integer> {
     
     // 특정 지점의 특정 물품 재고 찾기
-    Optional<BranchInventory> findByBranchIdAndItemId(Integer branchId, Integer itemId);
+    Optional<ScmBranchInventory> findByBranchIdAndItemId(Integer branchId, Integer itemId);
     
     // 지점별 전체 재고 조회
-    List<BranchInventory> findByBranchId(Integer branchId);
+    List<ScmBranchInventory> findByBranchId(Integer branchId);
 
     // ITEM 및 CATEGORY와 JOIN하여 한글 이름까지 한 번에 가져오는 쿼리
     @Query(value = "SELECT i.id AS itemId, i.item_name AS itemName, c.name AS categoryName, bi.stock_level AS stockLevel, i.unit AS unit " +

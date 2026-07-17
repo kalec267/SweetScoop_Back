@@ -9,7 +9,7 @@ import lombok.Setter;
 @Table(name = "HQ_STOCK")
 @Getter @Setter
 @NoArgsConstructor
-public class HqStock {
+public class ScmHqStock {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,13 +1,13 @@
 package com.sweetscoop.inventory.service;
 
-import com.sweetscoop.inventory.entity.BranchInventory;
-import com.sweetscoop.inventory.entity.HqInventory;
-import com.sweetscoop.inventory.entity.HqStock;
-import com.sweetscoop.inventory.repository.BranchInventoryRepository;
-import com.sweetscoop.inventory.repository.HqInventoryRepository;
-import com.sweetscoop.inventory.repository.HqStockRepository;
-import com.sweetscoop.inventory.repository.ItemRepository;
-import com.sweetscoop.inventory.repository.BranchRepository;
+import com.sweetscoop.inventory.entity.ScmBranchInventory;
+import com.sweetscoop.inventory.entity.ScmHqInventory;
+import com.sweetscoop.inventory.entity.ScmHqStock;
+import com.sweetscoop.inventory.repository.ScmBranchInventoryRepository;
+import com.sweetscoop.inventory.repository.ScmHqInventoryRepository;
+import com.sweetscoop.inventory.repository.ScmHqStockRepository;
+import com.sweetscoop.inventory.repository.ScmItemRepository;
+import com.sweetscoop.inventory.repository.ScmBranchRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,23 +23,23 @@ import java.util.Map;
 @Transactional(readOnly = true)
 public class InventoryService {	
 
-    private final BranchInventoryRepository branchInventoryRepository;
-    private final HqInventoryRepository hqInventoryRepository;
-    private final HqStockRepository hqStockRepository;
-    private final BranchRepository branchRepository;
-    private final ItemRepository itemRepository;
+    private final ScmBranchInventoryRepository branchInventoryRepository;
+    private final ScmHqInventoryRepository hqInventoryRepository;
+    private final ScmHqStockRepository hqStockRepository;
+    private final ScmBranchRepository branchRepository;
+    private final ScmItemRepository itemRepository;
 
     // 지점별 재고 조회
-    public List<BranchInventory> getBranchInventory(Integer branchId) {
+    public List<ScmBranchInventory> getBranchInventory(Integer branchId) {
         return branchInventoryRepository.findByBranchId(branchId);
     }
 
     // 재고 입고
     @Transactional
     public void importStock(Integer branchId, Integer itemId, int amount) {
-        BranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
+        ScmBranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
                 .orElseGet(() -> {
-                    BranchInventory newInv = new BranchInventory();
+                    ScmBranchInventory newInv = new ScmBranchInventory();
                     newInv.setBranchId(branchId);
                     newInv.setItemId(itemId);
                     return branchInventoryRepository.save(newInv);
@@ -50,7 +50,7 @@ public class InventoryService {
     // 재고 출고 및 자동 발주 검사
     @Transactional
     public void exportStock(Integer branchId, Integer itemId, int amount) {
-        BranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
+        ScmBranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
                 .orElseThrow(() -> new IllegalArgumentException("재고 정보가 없습니다."));
         
         inventory.decreaseStock(amount);
@@ -66,7 +66,7 @@ public class InventoryService {
         boolean hasPendingOrder = hqInventoryRepository.existsByBranchIdAndItemIdAndApprovalStatus(branchId, itemId, "PENDING");
         
         if (!hasPendingOrder) {
-            HqInventory autoOrder = new HqInventory();
+            ScmHqInventory autoOrder = new ScmHqInventory();
             autoOrder.setBranchId(branchId);
             autoOrder.setItemId(itemId);
             autoOrder.setApprovalStatus("PENDING");
@@ -80,14 +80,14 @@ public class InventoryService {
  // 지점 발주 승인 로직에 본사 자동 수급 트리거 추가
     @Transactional
     public void importHqOrder(Integer hqInventoryId) {
-        HqInventory hqOrder = hqInventoryRepository.findById(hqInventoryId)
+        ScmHqInventory hqOrder = hqInventoryRepository.findById(hqInventoryId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 발주 건입니다."));
 
         if ("ARRIVED".equals(hqOrder.getDeliveryStatus()) || "COMPLETED".equals(hqOrder.getApprovalStatus())) {
             throw new IllegalStateException("이미 처리가 완료된 발주 건입니다.");
         }
 
-        HqStock hqStock = hqStockRepository.findByItemId(hqOrder.getItemId())
+        ScmHqStock hqStock = hqStockRepository.findByItemId(hqOrder.getItemId())
                 .orElseThrow(() -> new IllegalArgumentException("본사 창고에 등록되지 않은 물품입니다."));
 
         // 본사 재고 차감
@@ -106,10 +106,10 @@ public class InventoryService {
         hqInventoryRepository.save(hqOrder);
 
         // 지점 재고 가산
-        BranchInventory branchStock = branchInventoryRepository
+        ScmBranchInventory branchStock = branchInventoryRepository
                 .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
                 .orElseGet(() -> {
-                    BranchInventory newStock = new BranchInventory();
+                    ScmBranchInventory newStock = new ScmBranchInventory();
                     newStock.setBranchId(hqOrder.getBranchId());
                     newStock.setItemId(hqOrder.getItemId());
                     newStock.setStockLevel(0);
@@ -132,9 +132,9 @@ public class InventoryService {
     // 본사 관리자가 화면에서 직접 원자재 수동 충전 요청을 보내는 비즈니스 로직
     @Transactional
     public void chargeHqStock(Integer itemId, int amount) {
-        HqStock hqStock = hqStockRepository.findByItemId(itemId)
+        ScmHqStock hqStock = hqStockRepository.findByItemId(itemId)
                 .orElseGet(() -> {
-                    HqStock newStock = new HqStock();
+                    ScmHqStock newStock = new ScmHqStock();
                     newStock.setItemId(itemId);
                     newStock.setStockLevel(0);
                     return hqStockRepository.save(newStock);
@@ -163,7 +163,7 @@ public class InventoryService {
     // 수동 발주 신청
     @Transactional
     public void createManualOrder(Integer branchId, Integer itemId, int amount) {
-        HqInventory manualOrder = new HqInventory();
+        ScmHqInventory manualOrder = new ScmHqInventory();
         manualOrder.setBranchId(branchId);
         manualOrder.setItemId(itemId);
         manualOrder.setApprovalStatus("PENDING");   
@@ -174,7 +174,7 @@ public class InventoryService {
     }
     
     public List<Map<String, Object>> getAllHqOrdersWithNames() {
-        List<HqInventory> rawOrders = hqInventoryRepository.findAll();
+        List<ScmHqInventory> rawOrders = hqInventoryRepository.findAll();
         
         // 데이터베이스의 BRANCH 테이블 데이터를 동적으로 읽어와 맵핑 테이블 구성
         Map<Integer, String> branchNameMap = new HashMap<>();
@@ -185,7 +185,7 @@ public class InventoryService {
         
         List<Map<String, Object>> result = new ArrayList<>();
 
-        for (HqInventory order : rawOrders) {
+        for (ScmHqInventory order : rawOrders) {
             Map<String, Object> map = new HashMap<>();
             map.put("hqInventoryId", order.getId());
             map.put("branchId", order.getBranchId());

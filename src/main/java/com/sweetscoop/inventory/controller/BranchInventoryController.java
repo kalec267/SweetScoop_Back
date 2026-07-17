@@ -1,6 +1,6 @@
 package com.sweetscoop.inventory.controller;
 
-import com.sweetscoop.inventory.repository.BranchInventoryRepository;
+import com.sweetscoop.inventory.repository.ScmBranchInventoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,7 +13,7 @@ import java.util.*;
 public class BranchInventoryController {
 
     @Autowired
-    private BranchInventoryRepository branchInventoryRepository;
+    private ScmBranchInventoryRepository branchInventoryRepository;
 
     @GetMapping("/branch/{branchId}")
     public ResponseEntity<List<Map<String, Object>>> getBranchInventory(@PathVariable("branchId") Integer branchId) {

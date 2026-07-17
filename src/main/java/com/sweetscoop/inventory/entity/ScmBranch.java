@@ -7,7 +7,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "BRANCH")
 @Getter @Setter
-public class Branch {
+public class ScmBranch {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
