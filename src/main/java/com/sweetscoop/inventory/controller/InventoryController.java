@@ -1,7 +1,8 @@
 package com.sweetscoop.inventory.controller;
 
-import com.sweetscoop.inventory.entity.BranchInventory;
+import com.sweetscoop.inventory.entity.Branch;
 import com.sweetscoop.inventory.entity.HqStock;
+import com.sweetscoop.inventory.repository.BranchRepository;
 import com.sweetscoop.inventory.repository.HqStockRepository;
 import com.sweetscoop.inventory.service.InventoryService;
 
@@ -19,6 +20,7 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
     private final HqStockRepository hqStockRepository;
+    private final BranchRepository branchRepository;
 
     // 지점별 재고 조회: 한글 품명과 카테고리가 맵 리스트 형태로 변환되어 프론트로
     @GetMapping("/branch/{branchId}")
@@ -101,6 +103,13 @@ public class InventoryController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("본사 창고 재고 목록을 불러오는 중 에러가 발생했습니다: " + e.getMessage());
         }
+    }
+    
+    //전체 지점 목록 조회 API
+    @GetMapping("/branches")
+    public ResponseEntity<List<Branch>> getAllBranches() {
+        // DB의 BRANCH 테이블에 있는 모든 레코드를 정렬(ID순)해서 그대로 반환합니다.
+        return ResponseEntity.ok(branchRepository.findAll());
     }
     
     

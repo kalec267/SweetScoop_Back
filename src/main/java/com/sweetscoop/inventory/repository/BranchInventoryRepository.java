@@ -14,7 +14,7 @@ public interface BranchInventoryRepository extends JpaRepository<BranchInventory
     // 특정 지점의 특정 물품 재고 찾기
     Optional<BranchInventory> findByBranchIdAndItemId(Integer branchId, Integer itemId);
     
-    // API 명세서: 지점별 전체 재고 조회용
+    // 지점별 전체 재고 조회
     List<BranchInventory> findByBranchId(Integer branchId);
 
     // ITEM 및 CATEGORY와 JOIN하여 한글 이름까지 한 번에 가져오는 쿼리

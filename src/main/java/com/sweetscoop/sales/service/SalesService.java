@@ -58,7 +58,7 @@ public class SalesService {
             List<Object[]> hourlyRawForPeriod = salesRepository.getHourlySales(branchId, start, end);
             
             Map<Integer, Long> todayMap = new HashMap<>();
-            // 반복문 시작을 10으로, 끝을 23으로 변경 (오전 10시 ~ 오후 11시)
+            // 오전 10시 ~ 오후 11시
             for (int i = 10; i <= 23; i++) todayMap.put(i, 0L);
             for (Object[] row : hourlyRawForPeriod) {
                 if (row[0] != null) {
@@ -73,7 +73,7 @@ public class SalesService {
                 periodTrends.add(point);
             }
         } else {
-            // 7일, 30일일 때는 기존처럼 날짜별(일별) 집계 유지
+            // 7일, 30일일 때는 기존처럼 날짜별(일별) 집계
             List<Object[]> dailyRaw = salesRepository.getDailySales(branchId, start, end);
             for (Object[] row : dailyRaw) {
                 Map<String, Object> point = new HashMap<>();
@@ -84,7 +84,7 @@ public class SalesService {
         }
         result.put("periodTrends", periodTrends);
 
-        // 3. [차트 2] 하단용: 일/주/월 시간대별 분석 (0시~23시 고정)
+        // 3. [차트 2] 일/주/월 시간대별 분석
         List<Object[]> hourlyRaw = salesRepository.getHourlySales(branchId, start, end);
         Map<Integer, Long> hourlyMap = new HashMap<>();
         for (int i = 10; i < 23; i++) hourlyMap.put(i, 0L);

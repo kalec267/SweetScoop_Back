@@ -21,7 +21,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class InventoryService {
+public class InventoryService {	
 
     private final BranchInventoryRepository branchInventoryRepository;
     private final HqInventoryRepository hqInventoryRepository;
@@ -94,7 +94,7 @@ public class InventoryService {
         hqStock.decreaseStock(hqOrder.getRequestQuantity());
         hqStockRepository.save(hqStock);
 
-        // 모찌 종류(13~17)는 개수 단위라 500개 미만, 아이스크림/원두는 50,000g 미만일 때 공장에 자동 주문 요청
+        // 모찌 종류는 개수 단위라 500개 미만, 아이스크림/원두는 50,000g 미만일 때 공장에 자동 주문 요청
         int threshold = (hqOrder.getItemId() >= 13 && hqOrder.getItemId() <= 17) ? 500 : 50000;
         if (hqStock.getStockLevel() < threshold) {
             triggerHqAutoOrderFromFactory(hqOrder.getItemId());
@@ -122,11 +122,11 @@ public class InventoryService {
 
     // 본사 재고 부족 시 공장에 공급 요청을 보내는 자동 트리거 메서드
     private void triggerHqAutoOrderFromFactory(Integer itemId) {
-        // 본사 재고는 대량으로 움직이므로 한 번 자동 보충될 때 200,000g(200kg) 또는 개수 2,000개씩 대량으로 공급을 요청합니다.
+        // 본사 재고는 대량으로 움직이므로 한 번 자동 보충될 때 200,000g(200kg) 또는 개수 2,000개씩 대량으로 공급을 요청
         int autoSupplyAmount = (itemId >= 13 && itemId <= 17) ? 2000 : 200000;
         
-        System.out.println("🚨 [SCM 알림] 본사 창고 물품 #" + itemId + " 재고 부족 감지!");
-        System.out.println("🏭 [공장 자동 발주] 공장 제조 라인에 원재료 " + autoSupplyAmount + "g/ea 자동 보충 요청 전송 완료.");
+        System.out.println("본사 창고 물품 #" + itemId + " 재고 부족 감지!");
+        System.out.println("공장 제조 라인에 원재료 " + autoSupplyAmount + "g/ea 자동 보충 요청 전송 완료.");
     }
 
     // 본사 관리자가 화면에서 직접 원자재 수동 충전 요청을 보내는 비즈니스 로직
@@ -143,7 +143,7 @@ public class InventoryService {
         hqStockRepository.save(hqStock);
     }
 
-    // 한글 품명을 조인한 가공 데이터 리스트 조회
+    // 한글 품명 데이터 리스트 조회
     public List<Map<String, Object>> getBranchInventoryWithNames(Integer branchId) {
         List<Object[]> rawData = branchInventoryRepository.findInventoryWithItemName(branchId);
         List<Map<String, Object>> result = new ArrayList<>();

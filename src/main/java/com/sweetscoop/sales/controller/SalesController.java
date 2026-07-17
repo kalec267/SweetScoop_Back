@@ -10,7 +10,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/sales")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*") // 프론트 연동 허용
+@CrossOrigin(origins = "*")
 public class SalesController {
 
     private final SalesService salesService;
