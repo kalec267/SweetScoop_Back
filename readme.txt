@@ -14,3 +14,7 @@ CORS 수정
 - BranchAdminController.java
 - SseController.java
 - AdminBranchController.java
+
+260717
+- 영수증 실시간 출력을 위한 printer 패키지 생성
+
