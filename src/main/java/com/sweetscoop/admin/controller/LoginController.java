@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/admin/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173"})
+@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173", "http://172.30.1.17:5300"})
 @Slf4j
 public class LoginController {
 

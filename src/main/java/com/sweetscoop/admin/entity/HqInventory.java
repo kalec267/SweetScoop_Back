@@ -17,6 +17,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import com.sweetscoop.item.entity.Item;
+
 @Entity
 @Table(name = "HQINVENTORY")
 @Getter

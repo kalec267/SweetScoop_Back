@@ -17,7 +17,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(
                 		"http://192.168.137.173:5173",
                         "http://localhost:5173",
-                        "http://localhost:5174"
+                        "http://localhost:5174",
+                        "http://172.30.1.17:5300"
                 )
                 .allowedMethods("*")
                 .allowedHeaders("*")

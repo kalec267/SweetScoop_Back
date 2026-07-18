@@ -2,6 +2,7 @@ package com.sweetscoop.admin.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.sweetscoop.branch.entity.Branch;
+import com.sweetscoop.item.entity.Item;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

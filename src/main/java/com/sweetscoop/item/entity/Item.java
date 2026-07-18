@@ -1,15 +1,20 @@
 package com.sweetscoop.item.entity;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "ITEM")
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class Item {
 
     @Id
@@ -24,5 +29,4 @@ public class Item {
 
     @Column(name = "item_name", nullable = false, length = 50)
     private String itemName;
-    
 }
