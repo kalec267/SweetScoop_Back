@@ -27,7 +27,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/api/admin/branches")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173"})
 public class BranchAdminController {
 
     private final BranchInventoryRepository branchInventoryRepository;

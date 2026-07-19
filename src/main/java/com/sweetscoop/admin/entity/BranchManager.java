@@ -15,19 +15,19 @@ import lombok.Setter;
 @NoArgsConstructor
 public class BranchManager {
 
-    @Id
-    @Column(name = "id", length = 50)
-    private String id; // 점주 고유 식별 ID
+	@Id
+	@Column(name = "id", length = 50)
+	private String id; // 점주 고유 식별 ID
 
-    @Column(name = "login_id", nullable = false, unique = true, length = 50)
-    private String loginId; // 로그인용 계정 아이디
+	@Column(name = "login_id", nullable = false, unique = true, length = 50)
+	private String loginId; // 로그인용 계정 아이디
 
-    @Column(name = "password", nullable = false, length = 100)
-    private String password; // 암호화된 비밀번호 (BCrypt 해시값)
+	@Column(name = "password", nullable = false, length = 100)
+	private String password; // 암호화된 비밀번호 (BCrypt 해시값)
 
-    @Column(name = "name", nullable = false, length = 50)
-    private String name; // 점주 이름
+	@Column(name = "name", nullable = false, length = 50)
+	private String name; // 점주 이름
 
-    @Column(name = "branch_id", nullable = false)
-    private Integer branchId; // 담당 지점 ID
+	@Column(name = "branch_id", nullable = false)
+	private Integer branchId; // 담당 지점 ID
 }

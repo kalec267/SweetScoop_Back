@@ -14,3 +14,13 @@ CORS 수정
 - BranchAdminController.java
 - SseController.java
 - AdminBranchController.java
+
+260719
+
+(회원가입 로직 생성)
+[RegisterController.java,RegisterService.java]
+
+(DTO 클래스 분리)
+[LoginRequestDto,RegisterSaveDto,LoginResponse]
+
+

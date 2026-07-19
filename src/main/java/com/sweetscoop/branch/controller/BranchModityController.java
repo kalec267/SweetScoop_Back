@@ -12,8 +12,7 @@ import com.sweetscoop.branch.service.BranchService;
 
 @RestController
 @RequestMapping("/api/admin/branches")
-@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173"})
-public class AdminBranchController {
+public class BranchModityController {
 
     @Autowired
     private BranchService branchService; 
