@@ -1,5 +1,6 @@
 package com.sweetscoop.payment.service;
 
+import com.sweetscoop.firebase.FirebaseService;
 import com.sweetscoop.payment.dto.PaymentRequestDTO;
 import com.sweetscoop.payment.repository.PaymentMapper;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,9 @@ import java.util.Map;
 public class PaymentService {
 
     private final PaymentMapper paymentMapper;
+    
+    // 주입받을 필드에 추가
+    private final FirebaseService firebaseService; // @RequiredArgsConstructor에 의해 자동 주입됨
 
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> processTossPayment(
@@ -230,7 +234,7 @@ public class PaymentService {
         }
 
         /*
-         * 6. 영수증 데이터 반환
+         * 6. 영수증 데이터 반환 및 Firebase 실시간 전송
          */
         Map<String, Object> receiptData =
                 paymentMapper.selectReceiptDetails(
@@ -250,6 +254,28 @@ public class PaymentService {
                 "items",
                 items
         );
+
+        // 💡 [추가] Firebase로 보낼 페이로드 구성
+        try {
+            Map<String, Object> firebasePayload = new HashMap<>();
+            firebasePayload.put("orderId", dto.getOrderId());
+            firebasePayload.put("orderNo", receiptData.get("receiptNo"));     // 주문번호
+            firebasePayload.put("waitingNo", receiptData.get("waitingNo"));   // 웨이팅번호
+            firebasePayload.put("items", items);                              // 메뉴 및 옵션 정보가 포함된 아이템 리스트
+            firebasePayload.put("status", "결제완료");                          // 결제상태
+            firebasePayload.put("totalPrice", receiptData.get("totalPrice")); // 가격
+            firebasePayload.put("paymentMethod", receiptData.get("paymentMethod"));
+            
+            // 지점 ID (ORDERS 테이블이나 receiptData에서 가져오거나 DTO에서 활용)
+            // 예시로 branchId가 필요하다면 주문 조회 시 가져온 값을 활용할 수 있습니다.
+            Integer branchId = (Integer) receiptData.get("branchId"); 
+            if (branchId == null) branchId = 1; // 기본 지점 보정 등 처리
+
+            firebaseService.sendOrderToBranch(branchId, String.valueOf(dto.getOrderId()), firebasePayload);
+            
+        } catch (Exception e) {
+            System.err.println(">>> Firebase 실시간 주문 전송 중 예외 발생 (결제는 정상 처리됨): " + e.getMessage());
+        }
 
         return receiptData;
     }
