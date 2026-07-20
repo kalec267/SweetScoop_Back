@@ -15,6 +15,17 @@ CORS 수정
 - SseController.java
 - AdminBranchController.java
 
+<<<<<<< HEAD
 260717
 - 영수증 실시간 출력을 위한 printer 패키지 생성
+=======
+260719
+
+(회원가입 로직 생성)
+[RegisterController.java,RegisterService.java]
+
+(DTO 클래스 분리)
+[LoginRequestDto,RegisterSaveDto,LoginResponse]
+
+>>>>>>> origin/dev1_hj
 

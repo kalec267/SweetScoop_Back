@@ -1,10 +1,38 @@
+//package com.sweetscoop.global.config;
+//
+//import org.springframework.context.annotation.Bean;
+//import org.springframework.context.annotation.Configuration;
+//import org.springframework.web.client.RestTemplate;
+//import org.springframework.web.servlet.config.annotation.CorsRegistry;
+//import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+//import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+//
+//@Configuration
+//public class WebConfig implements WebMvcConfigurer {
+//
+//    @Override
+//    public void addCorsMappings(CorsRegistry registry) {
+//    	
+////    	
+//        registry.addMapping("/api/**")
+//                .allowedOrigins(
+//                		"http://192.168.137.173:5173",
+//                        "http://localhost:5173",
+//                        "http://localhost:5174",
+//                        "http://172.30.1.17:5300"
+//                )
+//                .allowedMethods("*")
+//                .allowedHeaders("*")
+//                .allowCredentials(true);
+//    }
+//}
+
 package com.sweetscoop.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
@@ -13,15 +41,34 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
 
-        registry.addMapping("/api/**")
+        registry.addMapping("/**")
                 .allowedOrigins(
-                		"http://192.168.137.173:5173",
-                        "http://localhost:5173",
-                        "http://localhost:5174",
-                        "http://172.30.1.17:5300"
+                    "http://localhost:5173",
+                    "http://localhost:5174",
+                    "http://localhost:5300",
+                    "http://192.168.137.173:5173",
+                    "http://192.168.137.173:5300",
+                    "http://172.30.1.17:5300"
                 )
-                .allowedMethods("*")
+                .allowedMethods(
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE",
+                    "OPTIONS"
+                )
                 .allowedHeaders("*")
-                .allowCredentials(true);
+                .exposedHeaders(
+                    "Authorization",
+                    "Content-Disposition"
+                )
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }

@@ -1,7 +1,8 @@
 package com.sweetscoop.size.repository;
 
 import java.util.List;
-import org.apache.ibatis.annotations.Param;
+
+import org.springframework.data.repository.query.Param;
 
 import com.sweetscoop.size.dto.SizeDTO;
 

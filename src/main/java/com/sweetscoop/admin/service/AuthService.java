@@ -1,17 +1,18 @@
 package com.sweetscoop.admin.service;
 
+import java.util.Optional; // 👈 Optional 컴파일 에러 해결용 임포트
+
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.sweetscoop.admin.dto.request.LoginRequestDto;
+import com.sweetscoop.admin.dto.response.LoginResponse;
 import com.sweetscoop.admin.entity.BranchManager;
 import com.sweetscoop.admin.entity.HqManager;
 import com.sweetscoop.admin.repository.BranchManagerRepository;
 import com.sweetscoop.admin.repository.HqManagerRepository;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Service;
 
-import java.util.Optional; // 👈 Optional 컴파일 에러 해결용 임포트
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -24,69 +25,60 @@ public class AuthService {
     // BCrypt 검증용 객체 선언 (의존성 충돌 방지를 위해 직접 생성)
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public LoginResponse authenticate(LoginRequest request) {
-        String role = request.getRole();
-        String loginId = request.getUsername();
-        String rawPassword = request.getPassword() != null ? request.getPassword().trim() : "";
+    public LoginResponse authenticate(LoginRequestDto request) {
+    	
+    	String loginId = request.getUsername();
+    	String password = request.getPassword();
+    	
+    	Optional<HqManager> hq = hqManagerRepository.findByLoginId(loginId);
+    	
+    	String trimmedPassword = password.trim();
+    	
+    	System.out.println("▶ [HQ] 입력된 패스워드 원본: [" + password + "]");
+        System.out.println("▶ [HQ] 공백 제거 패스워드: [" + trimmedPassword + "]");
+        System.out.println("▶ [HQ] DB 해시값 글자수: " + hq.get().getPassword().length());
 
-        // 🏢 1. 본사 관리자(HQ) 인증 분기
-        if ("HQ".equals(role)) {
-            Optional<HqManager> hqOpt = hqManagerRepository.findByLoginId(loginId);
-            
-            if (hqOpt.isPresent()) {
-                HqManager hq = hqOpt.get();
-                String dbPassword = hq.getPassword() != null ? hq.getPassword().trim() : "";
-                
-                // 💡 [안전 장치] BCrypt 매칭 혹은 평문 '1234' 대조 검사
-                boolean isMatch = passwordEncoder.matches(rawPassword, dbPassword) || "1234".equals(rawPassword);
-                
-                System.out.println("[디버그] HQ 로그인 시도 - ID: " + loginId + " | 결과: " + isMatch);
+        boolean isMatch = passwordEncoder.matches(trimmedPassword, hq.get().getPassword());
+        System.out.println("▶ [HQ] 패스워드 일치 여부: " + isMatch);
+    	if (hq.isPresent()) {
+			if (passwordEncoder.matches(password, hq.get().getPassword())) {
+				return new LoginResponse(
+					true,
+	                "HQ",
+	                hq.get().getLoginId(),
+	                hq.get().getName(),
+	                null
+				);
+			}
+		}
+    	
+    	Optional<BranchManager> branch = 
+    			branchManagerRepository.findByLoginId(loginId);
+    	
+    	if (branch.isPresent()) {
+    		System.out.println("입력 비밀번호 : " + password);
+    	    System.out.println("DB 해시 : " + branch.get().getPassword());
 
-                if (isMatch) {
-                    return new LoginResponse(true, "HQ", hq.getLoginId(), hq.getName(), null);
-                }
-            }
-        } 
-        // 🏪 2. 지점 관리자(BRANCH) 인증 분기
-        else if ("BRANCH".equals(role)) {
-            Optional<BranchManager> branchOpt = branchManagerRepository.findByLoginId(loginId);
-            
-            if (branchOpt.isPresent()) {
-                BranchManager bm = branchOpt.get();
-                String dbPassword = bm.getPassword() != null ? bm.getPassword().trim() : "";
-                
-                // 💡 [안전 장치] BCrypt 매칭 혹은 평문 '1234' 대조 검사
-                boolean isMatch = passwordEncoder.matches(rawPassword, dbPassword) || "1234".equals(rawPassword);
-                
-                System.out.println("[디버그] BRANCH 로그인 시도 - ID: " + loginId + " | 결과: " + isMatch);
+    	    boolean result = passwordEncoder.matches(
+    	            password,
+    	            branch.get().getPassword()
+    	    );
 
-                if (isMatch) {
-                    return new LoginResponse(true, "BRANCH", bm.getLoginId(), bm.getName(), bm.getBranchId());
-                }
-            }
-        }
+    	    System.out.println("BCrypt 결과 : " + result);
 
-        return new LoginResponse(false, null, null, null, null);
+
+    	    if(result) {
+
+    	        return new LoginResponse(
+    	            true,
+    	            "BRANCH",
+    	            branch.get().getLoginId(),
+    	            branch.get().getName(),
+    	            branch.get().getBranchId()
+    	        );
+    	    }
+		}
+    	return new LoginResponse(false,null,null,null,null);
     }
-
-    // --- DTO Inner Classes ---
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LoginRequest {
-        private String role;
-        private String username;
-        private String password;
-    }
-
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LoginResponse {
-        private boolean success;
-        private String role;
-        private String username;
-        private String name;
-        private Integer branchId;
-    }
+    
 }

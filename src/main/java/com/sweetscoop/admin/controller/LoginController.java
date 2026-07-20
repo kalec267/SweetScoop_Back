@@ -1,13 +1,19 @@
 package com.sweetscoop.admin.controller;
 
-import com.sweetscoop.admin.service.AuthService;
-import com.sweetscoop.admin.service.AuthService.LoginRequest;
-import com.sweetscoop.admin.service.AuthService.LoginResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.sweetscoop.admin.dto.request.LoginRequestDto;
+import com.sweetscoop.admin.dto.response.LoginResponse;
+import com.sweetscoop.admin.service.AuthService;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/admin/auth")
@@ -19,7 +25,7 @@ public class LoginController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@RequestBody LoginRequestDto request) {
     	System.out.println("test----------------");
         log.info("[Login Controller] 로그인 시도 수신 - Role: {}, ID: {}", request.getRole(), request.getUsername());
 
