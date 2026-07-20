@@ -1,39 +1,109 @@
 package com.sweetscoop.payment.controller;
 
-import com.sweetscoop.payment.dto.PaymentRequestDTO;
-import com.sweetscoop.payment.service.PaymentService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.sweetscoop.payment.dto.MemberBenefitResponseDTO;
+import com.sweetscoop.payment.dto.PaymentCalculationRequestDTO;
+import com.sweetscoop.payment.dto.PaymentCalculationResponseDTO;
+import com.sweetscoop.payment.dto.PaymentRequestDTO;
+import com.sweetscoop.payment.service.PaymentCalculationService;
+import com.sweetscoop.payment.service.PaymentService;
+
+import lombok.RequiredArgsConstructor;
+
 @RestController
 @RequestMapping("/api/payments")
-@RequiredArgsConstructor   // Lombok이 final이 붙은 필드의 생성자를 자동으로 만들어 줌
+@RequiredArgsConstructor
 public class PaymentController {
 
-    // @Autowired 대신 final + @RequiredArgsConstructor 조합을 쓰는 것이 요즘 트렌드이자 정석입니다.
     private final PaymentService paymentService;
 
+    private final PaymentCalculationService
+            paymentCalculationService;
+
+    /**
+     * 전화번호로 회원 포인트와 쿠폰 조회
+     *
+     * GET /api/payments/member-benefits
+     *     ?phoneNumber=01012345678
+     */
+    @GetMapping("/member-benefits")
+    public ResponseEntity<MemberBenefitResponseDTO>
+            getMemberBenefits(
+                    @RequestParam String phoneNumber
+            ) {
+
+        return ResponseEntity.ok(
+                paymentCalculationService
+                        .getMemberBenefits(phoneNumber)
+        );
+    }
+
+    /**
+     * 쿠폰과 포인트 적용 금액 계산
+     */
+    @PostMapping("/calculate")
+    public ResponseEntity<PaymentCalculationResponseDTO>
+            calculatePayment(
+                    @RequestBody
+                    PaymentCalculationRequestDTO request
+            ) {
+
+        return ResponseEntity.ok(
+                paymentCalculationService
+                        .calculate(request)
+        );
+    }
+
+    /**
+     * Toss 결제 승인
+     */
     @PostMapping("/toss-confirm")
-    public ResponseEntity<Map<String, Object>> approvePayment(@RequestBody PaymentRequestDTO requestDTO) {
-        Map<String, Object> response = new HashMap<>();
+    public ResponseEntity<Map<String, Object>>
+            approvePayment(
+                    @RequestBody
+                    PaymentRequestDTO requestDTO
+            ) {
+
+        Map<String, Object> response =
+                new HashMap<>();
+
         try {
-            Map<String, Object> receiptData = paymentService.processTossPayment(requestDTO);
+            Map<String, Object> receiptData =
+                    paymentService.processTossPayment(
+                            requestDTO
+                    );
+
             response.put("success", true);
-            response.put("message", "결제가 완료되었습니다.");
+            response.put(
+                    "message",
+                    "결제가 완료되었습니다."
+            );
             response.put("receipt", receiptData);
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
-            // 💡 에러 로그를 콘솔에 출력 (이걸 봐야 원인을 압니다!)
-            e.printStackTrace(); 
-            
+            e.printStackTrace();
+
             response.put("success", false);
-            response.put("message", "에러 발생: " + e.getMessage()); // 프론트에서도 볼 수 있게 메시지 추가
-            return ResponseEntity.badRequest().body(response);
+            response.put(
+                    "message",
+                    e.getMessage()
+            );
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(response);
         }
     }
 }

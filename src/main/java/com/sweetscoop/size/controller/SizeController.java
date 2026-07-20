@@ -13,7 +13,6 @@ import com.sweetscoop.size.service.SizeService;
 @RestController
 @RequestMapping("/api/size")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class SizeController {
 
     private final SizeService sizeService;

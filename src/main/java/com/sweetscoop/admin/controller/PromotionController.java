@@ -23,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/promotion")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class PromotionController {
 
 

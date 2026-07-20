@@ -18,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/api/admin/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173","http://192.168.137.173:5173", "http://172.30.1.17:5300"})
 @Slf4j
 public class LoginController {
 

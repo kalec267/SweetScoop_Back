@@ -49,5 +49,19 @@ public class OrderRequestDTO {
 	
 //	컵 사이즈
 	private Integer cupId;
+	
+	private String phoneNumber;
+
+	private Integer memberId;
+
+	private Integer couponId;
+
+	private Integer pointUsed;
+
+	private Integer originalAmount;
+
+	private Integer discountAmount;
+
+	private Integer finalAmount;
 
 }

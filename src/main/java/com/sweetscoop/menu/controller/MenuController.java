@@ -15,7 +15,6 @@ import com.sweetscoop.menu.service.MenuService;
 @RestController
 @RequestMapping("/api/menu")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class MenuController {
 
 

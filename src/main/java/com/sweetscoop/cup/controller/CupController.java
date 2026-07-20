@@ -13,7 +13,6 @@ import com.sweetscoop.cup.service.CupService;
 @RestController
 @RequestMapping("/api/cup")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class CupController {
 
     private final CupService cupService;
