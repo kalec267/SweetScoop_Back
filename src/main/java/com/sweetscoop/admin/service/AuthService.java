@@ -32,6 +32,14 @@ public class AuthService {
     	
     	Optional<HqManager> hq = hqManagerRepository.findByLoginId(loginId);
     	
+    	String trimmedPassword = password.trim();
+    	
+    	System.out.println("▶ [HQ] 입력된 패스워드 원본: [" + password + "]");
+        System.out.println("▶ [HQ] 공백 제거 패스워드: [" + trimmedPassword + "]");
+        System.out.println("▶ [HQ] DB 해시값 글자수: " + hq.get().getPassword().length());
+
+        boolean isMatch = passwordEncoder.matches(trimmedPassword, hq.get().getPassword());
+        System.out.println("▶ [HQ] 패스워드 일치 여부: " + isMatch);
     	if (hq.isPresent()) {
 			if (passwordEncoder.matches(password, hq.get().getPassword())) {
 				return new LoginResponse(
