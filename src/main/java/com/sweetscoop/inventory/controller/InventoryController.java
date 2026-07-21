@@ -2,8 +2,10 @@ package com.sweetscoop.inventory.controller;
 
 import com.sweetscoop.inventory.entity.ScmBranch;
 import com.sweetscoop.inventory.entity.ScmHqStock;
+import com.sweetscoop.inventory.entity.ScmItem;
 import com.sweetscoop.inventory.repository.ScmBranchRepository;
 import com.sweetscoop.inventory.repository.ScmHqStockRepository;
+import com.sweetscoop.inventory.repository.ScmItemRepository;
 import com.sweetscoop.inventory.service.InventoryService;
 
 import lombok.RequiredArgsConstructor;
@@ -13,14 +15,22 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
 @RestController
-@RequestMapping("/inventory")
+@RequestMapping("/api/inventory")
 @RequiredArgsConstructor
 public class InventoryController {
 
     private final InventoryService inventoryService;
     private final ScmHqStockRepository hqStockRepository;
     private final ScmBranchRepository branchRepository;
+    private final ScmItemRepository itemRepository;
 
+    
+    // 전체 원자재(Item) 목록 조회
+    @GetMapping("/items")
+    public ResponseEntity<List<ScmItem>> getAllItems() {
+        return ResponseEntity.ok(itemRepository.findAll());
+    }
+    
     // 지점별 재고 조회: 한글 품명과 카테고리가 맵 리스트 형태로 변환되어 프론트로
     @GetMapping("/branch/{branchId}")
     public ResponseEntity<List<Map<String, Object>>> getBranchInventory(@PathVariable("branchId") Integer branchId) {
@@ -83,6 +93,19 @@ public class InventoryController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("본사 재고 충전 실패: " + e.getMessage());
+        }
+    }
+    
+    @PostMapping("/out/order")
+    public ResponseEntity<String> deductStockForOrder(
+            @RequestParam("branchId") Integer branchId,
+            @RequestParam("sizeId") Integer sizeId,
+            @RequestBody List<Integer> selectedMenuIds) { // 키오스크에서 보낸 메뉴(맛) ID 리스트 [1, 1, 3]
+        try {
+            inventoryService.exportStockForOrder(branchId, sizeId, selectedMenuIds);
+            return ResponseEntity.ok("주문 재고 분할 차감 및 자동 발주 검사가 성공적으로 처리되었습니다.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("재고 차감 실패: " + e.getMessage());
         }
     }
     

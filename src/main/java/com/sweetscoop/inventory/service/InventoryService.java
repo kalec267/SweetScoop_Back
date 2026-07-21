@@ -3,11 +3,17 @@ package com.sweetscoop.inventory.service;
 import com.sweetscoop.inventory.entity.ScmBranchInventory;
 import com.sweetscoop.inventory.entity.ScmHqInventory;
 import com.sweetscoop.inventory.entity.ScmHqStock;
+import com.sweetscoop.inventory.entity.ScmItem;
 import com.sweetscoop.inventory.repository.ScmBranchInventoryRepository;
 import com.sweetscoop.inventory.repository.ScmHqInventoryRepository;
 import com.sweetscoop.inventory.repository.ScmHqStockRepository;
 import com.sweetscoop.inventory.repository.ScmItemRepository;
 import com.sweetscoop.inventory.repository.ScmBranchRepository;
+
+import com.sweetscoop.size.dto.SizeDTO;
+import com.sweetscoop.size.service.SizeService;
+import com.sweetscoop.menu.dto.MenuDTO;
+import com.sweetscoop.menu.repository.MenuDAO;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,13 +27,16 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class InventoryService {	
+public class InventoryService { 
 
     private final ScmBranchInventoryRepository branchInventoryRepository;
     private final ScmHqInventoryRepository hqInventoryRepository;
     private final ScmHqStockRepository hqStockRepository;
     private final ScmBranchRepository branchRepository;
     private final ScmItemRepository itemRepository;
+
+    private final SizeService sizeService;
+    private final MenuDAO menuDAO;
 
     // 지점별 재고 조회
     public List<ScmBranchInventory> getBranchInventory(Integer branchId) {
@@ -47,17 +56,66 @@ public class InventoryService {
         inventory.increaseStock(amount);
     }
 
-    // 재고 출고 및 자동 발주 검사
+    // 단독 출고 및 자동 발주 검사 메서드
     @Transactional
     public void exportStock(Integer branchId, Integer itemId, int amount) {
         ScmBranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
-                .orElseThrow(() -> new IllegalArgumentException("재고 정보가 없습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("지점 재고 정보가 존재하지 않습니다. (지점: " + branchId + ", 물품: " + itemId + ")"));
         
         inventory.decreaseStock(amount);
 
-        // 재고 임계치 미만일 때 자동 발주
+        // 지점 재고가 5,000g 미만일 경우 자동으로 본사 발주 신청
         if (inventory.getStockLevel() < 5000) {
             checkAndTriggerAutoOrder(branchId, itemId);
+        }
+    }
+
+    @Transactional
+    public void exportStockForOrder(Integer branchId, Integer sizeId, List<Integer> selectedMenuIds) {
+        if (selectedMenuIds == null || selectedMenuIds.isEmpty()) {
+            return;
+        }
+
+        // 1. SizeService를 통해 용기 총 중량(totalWeightG)과 선택 가능 맛 수(flavorCnt) 조회
+        SizeDTO size = sizeService.getSize(sizeId);
+        if (size == null) {
+            throw new IllegalArgumentException("존재하지 않는 용기 사이즈입니다.");
+        }
+
+        int totalWeightG = size.getTotalWeightG(); // 예: 파인트 336g
+        int flavorCnt = size.getFlavorCnt();       // 예: 파인트 3개
+
+        if (flavorCnt <= 0) {
+            throw new IllegalArgumentException("용기의 선택 가능 맛 수량이 올바르지 않습니다.");
+        }
+
+        // 2. 1개 맛 선택 시 차감할 기본 단위 중량 계산 (예: 336g / 3 = 112g)
+        int baseWeightPerFlavor = totalWeightG / flavorCnt;
+
+        // 3. 중복 선택된 메뉴(menuId) 수량 카운팅 (Map<MenuId, 선택수량>)
+        Map<Integer, Integer> menuSelectCountMap = new HashMap<>();
+        for (Integer menuId : selectedMenuIds) {
+            menuSelectCountMap.put(menuId, menuSelectCountMap.getOrDefault(menuId, 0) + 1);
+        }
+
+        // 4. 각 메뉴별로 MenuDAO를 이용해 원자재(itemId)를 찾고 (기본 중량 * 선택 수량)만큼 차감
+        for (Map.Entry<Integer, Integer> entry : menuSelectCountMap.entrySet()) {
+            Integer menuId = entry.getKey();
+            Integer selectCount = entry.getValue();
+
+            // MenuDAO를 사용하여 menuId에 연결된 실제 원자재 ID(itemId) 조회
+            MenuDTO menu = menuDAO.findById(menuId);
+            if (menu == null || menu.getItemId() == null) {
+                throw new IllegalArgumentException("메뉴 정보 또는 매핑된 원자재(Item) ID가 존재하지 않습니다. (Menu ID: " + menuId + ")");
+            }
+
+            Integer itemId = menu.getItemId();
+
+            // 최종 차감할 중량 계산 (예: 엄마는외계인 112g * 2 = 224g)
+            int finalDeductAmount = baseWeightPerFlavor * selectCount;
+
+            // 지점 재고 차감 및 자동 발주 검사 실행
+            exportStock(branchId, itemId, finalDeductAmount);
         }
     }
 
@@ -77,7 +135,7 @@ public class InventoryService {
         }
     }
     
- // 지점 발주 승인 로직에 본사 자동 수급 트리거 추가
+    // 지점 발주 승인 로직
     @Transactional
     public void importHqOrder(Integer hqInventoryId) {
         ScmHqInventory hqOrder = hqInventoryRepository.findById(hqInventoryId)
@@ -94,10 +152,16 @@ public class InventoryService {
         hqStock.decreaseStock(hqOrder.getRequestQuantity());
         hqStockRepository.save(hqStock);
 
-        // 모찌 종류는 개수 단위라 500개 미만, 아이스크림/원두는 50,000g 미만일 때 공장에 자동 주문 요청
-        int threshold = (hqOrder.getItemId() >= 13 && hqOrder.getItemId() <= 17) ? 500 : 50000;
+        // ScmItem을 조회해서 categoryId 기반으로 임계치 설정
+        ScmItem item = itemRepository.findById(hqOrder.getItemId())
+                .orElseThrow(() -> new IllegalArgumentException("원자재(Item) 정보가 존재하지 않습니다."));
+
+        // categoryId가 2(모찌류)이면 500개, 그 외(아이스크림/원두)는 50,000g 기준
+        boolean isMochiCategory = (item.getCategoryId() != null && item.getCategoryId() == 2);
+        int threshold = isMochiCategory ? 500 : 50000;
+
         if (hqStock.getStockLevel() < threshold) {
-            triggerHqAutoOrderFromFactory(hqOrder.getItemId());
+            triggerHqAutoOrderFromFactory(item);
         }
 
         // 발주 상태 완료 처리
@@ -120,16 +184,16 @@ public class InventoryService {
         branchInventoryRepository.save(branchStock);
     }
 
-    // 본사 재고 부족 시 공장에 공급 요청을 보내는 자동 트리거 메서드
-    private void triggerHqAutoOrderFromFactory(Integer itemId) {
-        // 본사 재고는 대량으로 움직이므로 한 번 자동 보충될 때 200,000g(200kg) 또는 개수 2,000개씩 대량으로 공급을 요청
-        int autoSupplyAmount = (itemId >= 13 && itemId <= 17) ? 2000 : 200000;
-        
-        System.out.println("본사 창고 물품 #" + itemId + " 재고 부족 감지!");
-        System.out.println("공장 제조 라인에 원재료 " + autoSupplyAmount + "g/ea 자동 보충 요청 전송 완료.");
+    private void triggerHqAutoOrderFromFactory(ScmItem item) {
+        // categoryId가 2(모찌류)이면 2,000개, 그 외는 200,000g 수급 요청
+        boolean isMochiCategory = (item.getCategoryId() != null && item.getCategoryId() == 2);
+        int autoSupplyAmount = isMochiCategory ? 2000 : 200000;
+        String unitName = isMochiCategory ? "ea" : "g";
+
+        System.out.println("본사 창고 물품 [" + item.getItemName() + " (ID: #" + item.getId() + ")] 재고 부족 감지!");
+        System.out.println("공장 제조 라인에 원재료 " + autoSupplyAmount + unitName + " 자동 보충 요청 전송 완료.");
     }
 
-    // 본사 관리자가 화면에서 직접 원자재 수동 충전 요청을 보내는 비즈니스 로직
     @Transactional
     public void chargeHqStock(Integer itemId, int amount) {
         ScmHqStock hqStock = hqStockRepository.findByItemId(itemId)
@@ -143,7 +207,6 @@ public class InventoryService {
         hqStockRepository.save(hqStock);
     }
 
-    // 한글 품명 데이터 리스트 조회
     public List<Map<String, Object>> getBranchInventoryWithNames(Integer branchId) {
         List<Object[]> rawData = branchInventoryRepository.findInventoryWithItemName(branchId);
         List<Map<String, Object>> result = new ArrayList<>();
@@ -160,7 +223,6 @@ public class InventoryService {
         return result;
     }
 
-    // 수동 발주 신청
     @Transactional
     public void createManualOrder(Integer branchId, Integer itemId, int amount) {
         ScmHqInventory manualOrder = new ScmHqInventory();
@@ -176,7 +238,6 @@ public class InventoryService {
     public List<Map<String, Object>> getAllHqOrdersWithNames() {
         List<ScmHqInventory> rawOrders = hqInventoryRepository.findAll();
         
-        // 데이터베이스의 BRANCH 테이블 데이터를 동적으로 읽어와 맵핑 테이블 구성
         Map<Integer, String> branchNameMap = new HashMap<>();
         branchRepository.findAll().forEach(b -> branchNameMap.put(b.getId(), b.getBranchName()));
 
