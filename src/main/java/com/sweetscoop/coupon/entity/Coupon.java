@@ -1,6 +1,8 @@
 package com.sweetscoop.coupon.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -10,13 +12,15 @@ import java.time.LocalDateTime;
 @Table(name = "COUPON")
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class Coupon {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "member_id", nullable = false)
+    @Column(name = "member_id", nullable = true)
     private Integer memberId;
 
     @Column(name = "name", length = 50, nullable = false)
@@ -36,4 +40,9 @@ public class Coupon {
 
     @Column(name = "used_at")
     private LocalDateTime usedAt;
+    
+    public void use() {
+        this.isUsed = true;
+        this.usedAt = LocalDateTime.now();
+    }
 }
