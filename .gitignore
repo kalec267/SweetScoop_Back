@@ -4,6 +4,13 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+
+# Firebase 서비스 계정 키
+src/main/resources/firebase/serviceAccountKey.json
+src/main/resources/firebase/*.json
+*serviceAccountKey*.json
+*firebase-adminsdk*.json
+
 ### STS ###
 .apt_generated
 .classpath

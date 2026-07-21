@@ -1,236 +1,228 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper
-	namespace="com.sweetscoop.payment.repository.PaymentMapper">
+<mapper namespace="com.sweetscoop.payment.repository.PaymentMapper">
 
-	<!-- 주문 조회 및 중복 결제 방지를 위한 행 잠금 -->
-	<select id="selectOrderForUpdate" resultType="map">
-		SELECT
-		id AS id,
-		status AS status,
-		total_price AS totalPrice
-		FROM ORDERS
-		WHERE id = #{orderId}
-		FOR UPDATE
-	</select>
+    <!-- 주문 조회 및 중복 결제 방지를 위한 행 잠금 -->
+    <select
+            id="selectOrderForUpdate"
+            resultType="map">
+
+        SELECT
+            o.id AS id,
+            o.status AS status,
+            o.total_price AS totalPrice,
+            o.branch_id AS branchId
+        FROM ORDERS o
+        WHERE o.id = #{orderId}
+        FOR UPDATE
+
+    </select>
 
 
-<<<<<<< HEAD
-	<!-- 결제 내역 저장 -->
-	<insert id="insertPayment">
-		INSERT INTO PAYMENT (
-		order_id,
-		coupon_id,
-		method,
-		amount,
-		card_company,
-		payment_time,
-		payment_status,
-		pg_transaction_id,
-		point_used,
-		point_earned
-		)
-		VALUES (
-		#{payment.orderId},
-		#{payment.couponId},
-		#{payment.method},
-		#{payment.amount},
-		#{payment.cardCompany},
-		NOW(),
-		'승인',
-		#{pgId},
-		COALESCE(#{payment.pointUsed}, 0),
-		COALESCE(#{payment.pointEarned}, 0)
-		)
-	</insert>
-=======
-	<!-- 💡 새로 추가해야 할 대기 번호 최댓값 조회 쿼리 -->
-    <select id="selectMaxWaitingNo" resultType="integer">
-	    SELECT MAX(waiting_no) FROM ORDERS
-	</select>
+    <!-- 결제 내역 저장 -->
+    <insert id="insertPayment">
+
+        INSERT INTO PAYMENT (
+            order_id,
+            coupon_id,
+            method,
+            amount,
+            card_company,
+            payment_time,
+            payment_status,
+            pg_transaction_id,
+            point_used,
+            point_earned
+        )
+        VALUES (
+            #{payment.orderId},
+            #{payment.couponId},
+            #{payment.method},
+            #{payment.amount},
+            #{payment.cardCompany},
+            NOW(),
+            '승인',
+            #{pgId},
+            COALESCE(#{payment.pointUsed}, 0),
+            COALESCE(#{payment.pointEarned}, 0)
+        )
+
+    </insert>
+
+
+    <!-- 현재 가장 큰 대기번호 조회 -->
+    <select
+            id="selectMaxWaitingNo"
+            resultType="java.lang.Integer">
+
+        SELECT COALESCE(MAX(waiting_no), 0)
+        FROM ORDERS
+        WHERE waiting_no IS NOT NULL
+
+    </select>
+
+
+    <!-- 주문 상태 및 대기번호 수정 -->
     <update id="updateOrderStatus">
+
         UPDATE ORDERS
         SET
             status = #{status},
             waiting_no = #{waitingNo}
         WHERE id = #{orderId}
+
     </update>
->>>>>>> origin/feature/firebase
 
 
-<<<<<<< HEAD
-	<!-- 주문 상태 및 대기번호 수정 -->
-	<update id="updateOrderStatus">
-		UPDATE ORDERS
-		SET
-		status = #{status},
-		waiting_no = #{waitingNo}
-		WHERE id = #{orderId}
-	</update>
-=======
-    <select id="selectOrderItems" resultType="map">
-	    SELECT
-	        oi.id AS orderItemId,
-	        s.name AS sizeName,
-	        oi.quantity AS quantity,
-	        oi.total_price AS price,
-	        -- 선택한 맛들을 쉼표로 자동 결합 (예: 바닐라, 초코, 그린티)
-	        GROUP_CONCAT(DISTINCT m.name ORDER BY oim.id SEPARATOR ', ') AS flavors,
-	        -- 추가 옵션들을 쉼표로 자동 결합 (예: 초코 코팅 추가)
-	        GROUP_CONCAT(DISTINCT mo.name ORDER BY oio.id SEPARATOR ', ') AS options
-	    FROM ORDERITEM oi
-	    LEFT JOIN SIZE s 
-	        ON oi.size_id = s.id
-	    LEFT JOIN ORDERITEMMENU oim 
-	        ON oi.id = oim.order_item_id
-	    LEFT JOIN MENU m 
-	        ON oim.menu_id = m.id
-	    LEFT JOIN ORDERITEMOPTION oio 
-	        ON oi.id = oio.order_item_id
-	    LEFT JOIN MENU_OPTION mo 
-	        ON oio.menu_option_id = mo.id
-	    WHERE oi.order_id = #{orderId}
-	    GROUP BY oi.id, s.name, oi.quantity, oi.total_price
-	    ORDER BY oi.id
-	</select>
->>>>>>> origin/feature/firebase
+    <!-- 결제 완료 영수증 기본 정보 조회 -->
+    <select
+            id="selectReceiptDetails"
+            resultType="map">
+
+        SELECT
+            o.id AS orderId,
+            o.receipt_no AS receiptNo,
+            o.waiting_no AS waitingNo,
+            o.branch_id AS branchId,
+
+            o.total_price AS originalAmount,
+
+            GREATEST(
+                0,
+                o.total_price
+                - COALESCE(p.amount, o.total_price)
+                - COALESCE(p.point_used, 0)
+            ) AS couponDiscount,
+
+            COALESCE(
+                p.point_used,
+                0
+            ) AS pointUsed,
+
+            GREATEST(
+                0,
+                o.total_price
+                - COALESCE(p.amount, o.total_price)
+            ) AS totalDiscount,
+
+            COALESCE(
+                p.amount,
+                o.total_price
+            ) AS finalAmount,
+
+            COALESCE(
+                p.point_earned,
+                0
+            ) AS pointEarned,
+
+            DATE_FORMAT(
+                COALESCE(
+                    p.payment_time,
+                    o.created_at
+                ),
+                '%Y-%m-%d %H:%i:%s'
+            ) AS orderTime,
+
+            p.method AS paymentMethod,
+            p.card_company AS cardCompany,
+            p.payment_status AS paymentStatus,
+            p.pg_transaction_id AS pgTransactionId,
+            p.coupon_id AS couponId,
+            c.name AS couponName
+
+        FROM ORDERS o
+
+        LEFT JOIN PAYMENT p
+            ON p.id = (
+                SELECT MAX(p2.id)
+                FROM PAYMENT p2
+                WHERE p2.order_id = o.id
+            )
+
+        LEFT JOIN COUPON c
+            ON c.id = p.coupon_id
+
+        WHERE o.id = #{orderId}
+
+    </select>
 
 
-	<!-- 결제 완료 영수증 기본 정보 -->
-	<select id="selectReceiptDetails" resultType="map">
-		SELECT
-		o.id AS orderId,
-		o.receipt_no AS receiptNo,
-		o.waiting_no AS waitingNo,
+    <!-- 주문 상품 영수증 목록 조회 -->
+    <select
+            id="selectOrderItems"
+            resultType="map">
 
-		/* 할인 전 주문 금액 */
-		o.total_price AS originalAmount,
+        SELECT
+            oi.id AS orderItemId,
 
-		/*
-		* 현재 PAYMENT 테이블에 coupon_discount 컬럼이 없으므로
-		* 다음 계산으로 실제 쿠폰 할인액을 추정한다.
-		*
-		* 주문 원금 - 실제 결제 금액 - 사용 포인트
-		*/
-		GREATEST(
-		0,
-		o.total_price
-		- COALESCE(p.amount, o.total_price)
-		- COALESCE(p.point_used, 0)
-		) AS couponDiscount,
+            s.name AS sizeName,
 
-		COALESCE(
-		p.point_used,
-		0
-		) AS pointUsed,
+            GROUP_CONCAT(
+                DISTINCT m.name
+                ORDER BY oim.id
+                SEPARATOR ', '
+            ) AS menuName,
 
-		/*
-		* 실제 총 할인 금액
-		* 할인 전 금액 - 실제 결제 금액
-		*/
-		GREATEST(
-		0,
-		o.total_price
-		- COALESCE(p.amount, o.total_price)
-		) AS totalDiscount,
+            GROUP_CONCAT(
+                DISTINCT mo.name
+                ORDER BY oio.id
+                SEPARATOR ', '
+            ) AS optionName,
 
-		COALESCE(
-		p.amount,
-		o.total_price
-		) AS finalAmount,
+            oi.quantity AS quantity,
 
-		COALESCE(
-		p.point_earned,
-		0
-		) AS pointEarned,
+            CASE
+                WHEN oi.quantity IS NULL
+                     OR oi.quantity &lt;= 0
+                THEN COALESCE(oi.total_price, 0)
 
-		DATE_FORMAT(
-		COALESCE(
-		p.payment_time,
-		o.created_at
-		),
-		'%Y-%m-%d %H:%i:%s'
-		) AS orderTime,
+                ELSE FLOOR(
+                    COALESCE(oi.total_price, 0)
+                    / oi.quantity
+                )
+            END AS price,
 
-		p.method AS paymentMethod,
-		p.card_company AS cardCompany,
-		p.payment_status AS paymentStatus,
-		p.pg_transaction_id AS pgTransactionId,
+            COALESCE(
+                oi.total_price,
+                0
+            ) AS totalPrice,
 
-		p.coupon_id AS couponId,
-		c.name AS couponName
+            oi.cup_id AS cupId,
+            oi.size_id AS sizeId
 
-		FROM ORDERS o
+        FROM ORDERITEM oi
 
-		LEFT JOIN PAYMENT p
-		ON p.id = (
-		SELECT MAX(p2.id)
-		FROM PAYMENT p2
-		WHERE p2.order_id = o.id
-		)
+        LEFT JOIN SIZE s
+            ON oi.size_id = s.id
 
-		LEFT JOIN COUPON c
-		ON c.id = p.coupon_id
+        LEFT JOIN ORDERITEMMENU oim
+            ON oi.id = oim.order_item_id
 
-		WHERE o.id = #{orderId}
-	</select>
+        LEFT JOIN MENU m
+            ON oim.menu_id = m.id
 
+        LEFT JOIN ORDERITEMOPTION oio
+            ON oi.id = oio.order_item_id
 
-	<!-- 주문 상품 영수증 목록 한 ORDERITEM에 여러 MENU가 연결될 수 있으므로 GROUP_CONCAT으로 메뉴명을 하나의 
-		행으로 묶는다. -->
-	<select id="selectOrderItems" resultType="map">
-		SELECT
-		oi.id AS orderItemId,
+        LEFT JOIN MENU_OPTION mo
+            ON oio.menu_option_id = mo.id
 
-		GROUP_CONCAT(
-		DISTINCT m.name
-		ORDER BY oim.id
-		SEPARATOR ', '
-		) AS menuName,
+        WHERE oi.order_id = #{orderId}
 
-		oi.quantity AS quantity,
+        GROUP BY
+            oi.id,
+            s.name,
+            oi.quantity,
+            oi.total_price,
+            oi.cup_id,
+            oi.size_id
 
-		CASE
-		WHEN oi.quantity IS NULL
-		OR oi.quantity  &lt;= 0
-		THEN COALESCE(oi.total_price, 0)
+        ORDER BY oi.id ASC
 
-		ELSE FLOOR(
-		COALESCE(oi.total_price, 0)
-		/ oi.quantity
-		)
-		END AS price,
-
-		COALESCE(
-		oi.total_price,
-		0
-		) AS totalPrice,
-
-		oi.cup_id AS cupId,
-		oi.size_id AS sizeId
-
-		FROM ORDERITEM oi
-
-		LEFT JOIN ORDERITEMMENU oim
-		ON oi.id = oim.order_item_id
-
-		LEFT JOIN MENU m
-		ON oim.menu_id = m.id
-
-		WHERE oi.order_id = #{orderId}
-
-		GROUP BY
-		oi.id,
-		oi.quantity,
-		oi.total_price,
-		oi.cup_id,
-		oi.size_id
-
-		ORDER BY
-		oi.id ASC
-	</select>
+    </select>
 
 </mapper>
