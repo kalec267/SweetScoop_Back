@@ -29,48 +29,29 @@ public class AuthService {
     	
     	String loginId = request.getUsername();
     	String password = request.getPassword();
+    	String role = request.getRole();
     	
-    	Optional<HqManager> hq = hqManagerRepository.findByLoginId(loginId);
+    	// 1. [본사 관리자 탭] 선택 시 -> HQ 테이블만 검증
+        if ("HQ".equalsIgnoreCase(role)) {
+            Optional<HqManager> hq = hqManagerRepository.findByLoginId(loginId);
+            if (hq.isPresent() && passwordEncoder.matches(password, hq.get().getPassword())) {
+                return new LoginResponse(
+                    true, "HQ", hq.get().getLoginId(), hq.get().getName(), null
+                );
+            }
+        } 
+        // 2. [분점 관리자 탭] 선택 시 -> BRANCH 테이블만 검증
+        else if ("BRANCH".equalsIgnoreCase(role)) {
+            Optional<BranchManager> branch = branchManagerRepository.findByLoginId(loginId);
+            if (branch.isPresent() && passwordEncoder.matches(password, branch.get().getPassword())) {
+                return new LoginResponse(
+                    true, "BRANCH", branch.get().getLoginId(), branch.get().getName(), branch.get().getBranchId()
+                );
+            }
+        }
 
-    	if (hq.isPresent()) {
-			if (passwordEncoder.matches(password, hq.get().getPassword())) {
-				return new LoginResponse(
-					true,
-	                "HQ",
-	                hq.get().getLoginId(),
-	                hq.get().getName(),
-	                null
-				);
-			}
-		}
-    	
-    	Optional<BranchManager> branch = 
-    			branchManagerRepository.findByLoginId(loginId);
-    	
-    	if (branch.isPresent()) {
-    		System.out.println("입력 비밀번호 : " + password);
-    	    System.out.println("DB 해시 : " + branch.get().getPassword());
-
-    	    boolean result = passwordEncoder.matches(
-    	            password,
-    	            branch.get().getPassword()
-    	    );
-
-    	    System.out.println("BCrypt 결과 : " + result);
-
-
-    	    if(result) {
-
-    	        return new LoginResponse(
-    	            true,
-    	            "BRANCH",
-    	            branch.get().getLoginId(),
-    	            branch.get().getName(),
-    	            branch.get().getBranchId()
-    	        );
-    	    }
-		}
-    	return new LoginResponse(false,null,null,null,null);
+        // 탭과 계정이 맞지 않거나 비밀번호 불일치 시 로그인 실패
+        return new LoginResponse(false, null, null, null, null);
     }
     
 }
