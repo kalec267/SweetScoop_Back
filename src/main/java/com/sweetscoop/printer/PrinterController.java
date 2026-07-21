@@ -11,7 +11,9 @@ import org.springframework.web.client.RestTemplate;
 @RequestMapping("/api/printer")
 public class PrinterController {
 
-    private final String PRINTER_URL = "http://172.16.15.97:7777/receipt";
+//    private final String PRINTER_URL = "http://172.16.15.97:7777/receipt";
+    private final String PRINTER_URL = "http://host.docker.internal:8888/receipt";
+    
 
     @PostMapping("/print")
     public ResponseEntity<String> sendToPrinter(@RequestBody Map<String, Object> orderData) {
