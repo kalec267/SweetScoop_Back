@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 
 
 @RestController
-@RequestMapping("/promotion")
+@RequestMapping("/api/promotion")
 @RequiredArgsConstructor
 public class PromotionController {
 
