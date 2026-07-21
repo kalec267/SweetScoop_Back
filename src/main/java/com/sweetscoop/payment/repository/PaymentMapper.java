@@ -14,4 +14,5 @@ public interface PaymentMapper {
     int updateOrderStatus(@Param("orderId") String string, @Param("status") String status, @Param("waitingNo") int waitingNo);
     Map<String, Object> selectReceiptDetails(@Param("orderId") String string);
     List<Map<String, Object>> selectOrderItems(@Param("orderId") String orderId);
+    Integer selectMaxWaitingNo();
 }

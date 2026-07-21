@@ -19,6 +19,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.sweetscoop.coupon.entity.Coupon;
 import com.sweetscoop.coupon.repository.CouponRepository;
+import com.sweetscoop.firebase.FirebaseService;
 import com.sweetscoop.member.entity.Member;
 import com.sweetscoop.member.repository.MemberRepository;
 import com.sweetscoop.payment.dto.PaymentCalculationRequestDTO;
@@ -32,6 +33,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentService {
 
+	/**
+	 * 결제 금액의 5%를 포인트로 적립
+	 */
 	private static final double POINT_EARNING_RATE = 0.05;
 
 	private final PaymentMapper paymentMapper;
@@ -44,8 +48,10 @@ public class PaymentService {
 
 	private final RestTemplate restTemplate;
 
+	private final FirebaseService firebaseService;
+
 	/**
-	 * application.properties에 설정한 Toss Secret Key
+	 * application.properties 또는 환경변수에 설정된 Toss Secret Key
 	 */
 	@Value("${toss.secret-key}")
 	private String tossSecretKey;
@@ -56,12 +62,15 @@ public class PaymentService {
 	@Transactional(rollbackFor = Exception.class)
 	public Map<String, Object> processTossPayment(PaymentRequestDTO dto) throws Exception {
 
+		/*
+		 * 1. 결제 요청값 검증
+		 */
 		validateRequest(dto);
 
 		/*
-		 * 1. 주문 행 잠금
+		 * 2. 주문 행 잠금
 		 *
-		 * 같은 주문에 결제가 동시에 들어오는 것을 방지한다.
+		 * 동일 주문에 결제 요청이 동시에 들어오는 것을 방지한다.
 		 */
 		Map<String, Object> order = paymentMapper.selectOrderForUpdate(dto.getOrderId());
 
@@ -69,60 +78,69 @@ public class PaymentService {
 			throw new IllegalArgumentException("존재하지 않는 주문 번호입니다.");
 		}
 
+		/*
+		 * 3. 이미 결제된 주문인지 검사
+		 */
 		validateOrderStatus(order);
 
 		/*
-		 * 2. ORDERS에 저장된 할인 전 주문 금액 조회
+		 * 4. ORDERS에 저장된 할인 전 금액 조회
 		 */
 		int originalAmount = getRequiredInteger(order, "totalPrice", "total_price");
 
 		/*
-		 * 3. 전화번호로 회원 조회
+		 * 5. 회원 조회
 		 *
-		 * 전화번호가 없으면 비회원 결제로 처리한다.
+		 * 전화번호가 없으면 비회원으로 처리한다.
 		 */
 		Member member = findMember(dto.getPhoneNumber());
 
 		/*
-		 * 4. 서버에서 쿠폰·포인트 할인 금액 재계산
+		 * 6. 서버 기준 쿠폰·포인트 할인 금액 계산
 		 */
 		PaymentCalculationResponseDTO calculation = calculatePayment(dto, originalAmount);
 
 		/*
-		 * 5. 프론트에서 요청한 결제 금액과 서버가 계산한 최종 금액 비교
+		 * 7. 프론트 결제 금액과 서버 계산 금액 비교
 		 */
 		validatePaymentAmount(dto.getAmount(), calculation.getFinalAmount());
 
 		/*
-		 * PaymentMapper.xml에서 저장할 값 설정
+		 * Mapper에 저장할 포인트 사용 금액 설정
 		 */
 		dto.setPointUsed(calculation.getPointDiscount());
 
+		/*
+		 * 결제 금액에 따른 적립 포인트 계산
+		 */
 		int pointEarned = calculatePointEarned(calculation.getFinalAmount(), member);
 
 		dto.setPointEarned(pointEarned);
 
 		/*
-		 * 6. 결제 승인 직전 쿠폰 재검증
+		 * 8. 선택한 쿠폰 최종 검증
 		 */
 		Coupon coupon = validateSelectedCoupon(dto.getCouponId(), member);
 
 		/*
-		 * 7. Toss Payments 결제 승인
+		 * 9. Toss Payments 결제 승인
 		 */
 		Map<String, Object> tossResponse = confirmTossPayment(dto);
 
 		/*
-		 * 8. Toss 응답에서 결제 수단과 카드사 추출
+		 * 10. Toss 응답에서 결제수단과 카드사 추출
 		 */
 		setPaymentMethod(dto, tossResponse);
 
 		setCardCompany(dto, tossResponse);
 
+		/*
+		 * PAYMENT NOT NULL 컬럼의 기본값 설정
+		 */
 		applyPaymentDefaults(dto);
 
 		/*
-		 * 9. PAYMENT 저장
+		 * 11. PAYMENT 테이블 저장
 		 */
 		int paymentResult = paymentMapper.insertPayment(dto, dto.getPaymentKey());
 
@@ -131,24 +149,27 @@ public class PaymentService {
 		}
 
 		/*
-		 * 10. 결제가 정상 승인된 이후 쿠폰 사용 처리
+		 * 12. 결제 승인 후 쿠폰 사용 처리
 		 */
 		if (coupon != null) {
 			useCoupon(coupon);
 		}
 
 		/*
-		 * 11. 포인트 차감·적립 및 주문 횟수 증가
+		 * 13. 회원 포인트 차감·적립 및 주문 횟수 증가
 		 */
 		if (member != null) {
 			updateMemberPoint(member, calculation.getPointDiscount(), pointEarned);
 		}
 
 		/*
-		 * 12. 주문 상태 및 대기번호 갱신
+		 * 14. 순차 대기번호 생성
 		 */
 		int waitingNo = createWaitingNumber();
 
+		/*
+		 * 15. 주문 상태 및 대기번호 갱신
+		 */
 		int orderResult = paymentMapper.updateOrderStatus(dto.getOrderId(), "결제완료", waitingNo);
 
 		if (orderResult <= 0) {
@@ -156,13 +177,25 @@ public class PaymentService {
 		}
 
 		/*
-		 * 13. 영수증 데이터 반환
+		 * 16. 영수증 데이터 조회
 		 */
-		return createReceiptData(dto.getOrderId());
+		Map<String, Object> receiptData = createReceiptData(dto.getOrderId());
+
+		/*
+		 * 17. Firebase로 결제 완료 주문 전송
+		 *
+		 * Firebase 전송 실패는 실제 결제 결과를 롤백하지 않도록 별도 예외 처리한다.
+		 */
+		sendReceiptToFirebase(dto, order, receiptData);
+
+		/*
+		 * 18. 프론트에 영수증 데이터 반환
+		 */
+		return receiptData;
 	}
 
 	/**
-	 * 결제 요청 기본 검증
+	 * 결제 요청 기본값 검증
 	 */
 	private void validateRequest(PaymentRequestDTO dto) {
 
@@ -186,9 +219,6 @@ public class PaymentService {
 			throw new IllegalArgumentException("결제 금액은 1원 이상이어야 합니다.");
 		}
 
-		if (dto.getPointUsed() != null && dto.getPointUsed() < 0) {
-			throw new IllegalArgumentException("사용 포인트는 0 이상이어야 합니다.");
-		}
 		if (dto.getPointUsed() != null && dto.getPointUsed() < 0) {
 			throw new IllegalArgumentException("사용 포인트는 0 이상이어야 합니다.");
 		}
@@ -232,7 +262,7 @@ public class PaymentService {
 	}
 
 	/**
-	 * 서버 할인 금액 계산
+	 * 서버 기준 할인 금액 계산
 	 */
 	private PaymentCalculationResponseDTO calculatePayment(PaymentRequestDTO dto, int originalAmount) {
 
@@ -250,7 +280,7 @@ public class PaymentService {
 	}
 
 	/**
-	 * 요청 결제 금액과 서버 계산 금액 비교
+	 * 프론트 요청 금액과 서버 계산 금액 비교
 	 */
 	private void validatePaymentAmount(int requestedAmount, Integer calculatedAmount) {
 
@@ -269,7 +299,7 @@ public class PaymentService {
 	}
 
 	/**
-	 * 쿠폰 최종 검증
+	 * 선택한 쿠폰 최종 검증
 	 */
 	private Coupon validateSelectedCoupon(Integer couponId, Member member) {
 
@@ -363,6 +393,7 @@ public class PaymentService {
 
 				if (!company.isBlank()) {
 					dto.setCardCompany(company);
+
 					return;
 				}
 			}
@@ -384,7 +415,7 @@ public class PaymentService {
 	}
 
 	/**
-	 * PAYMENT NOT NULL 방어값
+	 * PAYMENT NOT NULL 컬럼 기본값
 	 */
 	private void applyPaymentDefaults(PaymentRequestDTO dto) {
 
@@ -419,13 +450,14 @@ public class PaymentService {
 		}
 
 		coupon.setIsUsed(true);
+
 		coupon.setUsedAt(LocalDateTime.now());
 
 		couponRepository.save(coupon);
 	}
 
 	/**
-	 * 회원 포인트 차감·적립
+	 * 회원 포인트 차감·적립 및 주문 횟수 증가
 	 */
 	private void updateMemberPoint(Member member, Integer pointUsed, Integer pointEarned) {
 
@@ -438,16 +470,14 @@ public class PaymentService {
 		if (usedPoint < 0) {
 			throw new IllegalArgumentException("사용 포인트가 올바르지 않습니다.");
 		}
+
 		if (usedPoint % 500 != 0) {
-		    throw new IllegalArgumentException(
-		            "포인트는 500원 단위로만 사용할 수 있습니다."
-		    );
+			throw new IllegalArgumentException("포인트는 500원 단위로만 사용할 수 있습니다.");
 		}
 
 		if (usedPoint > currentPoint) {
 			throw new IllegalArgumentException("보유 포인트가 부족합니다.");
 		}
-		
 
 		member.setPoint(currentPoint - usedPoint + earnedPoint);
 
@@ -461,13 +491,10 @@ public class PaymentService {
 	/**
 	 * 적립 포인트 계산
 	 *
-	 * 현재 정책: 실제 결제 금액의 5%
+	 * 회원만 실제 결제 금액의 5%를 적립한다.
 	 */
 	private int calculatePointEarned(int finalAmount, Member member) {
 
-		/*
-		 * 비회원은 포인트가 적립되지 않는다.
-		 */
 		if (member == null) {
 			return 0;
 		}
@@ -476,12 +503,19 @@ public class PaymentService {
 	}
 
 	/**
-	 * 대기번호 생성
+	 * 순차 대기번호 생성
 	 *
-	 * 현재는 기존 방식대로 100~999 사이의 숫자를 생성한다.
+	 * 현재 ORDERS의 최대 대기번호에 1을 더한다.
 	 */
 	private int createWaitingNumber() {
-		return (int) (Math.random() * 900) + 100;
+
+		Integer maxWaitingNo = paymentMapper.selectMaxWaitingNo();
+
+		if (maxWaitingNo == null || maxWaitingNo < 1) {
+			return 1;
+		}
+
+		return maxWaitingNo + 1;
 	}
 
 	/**
@@ -503,7 +537,45 @@ public class PaymentService {
 	}
 
 	/**
-	 * Map에서 정수값 추출
+	 * Firebase에 결제 완료 주문 전달
+	 *
+	 * Firebase 전송 실패는 결제 처리를 실패시키지 않는다.
+	 */
+	private void sendReceiptToFirebase(PaymentRequestDTO dto, Map<String, Object> order,
+			Map<String, Object> receiptData) {
+
+		try {
+			Map<String, Object> firebasePayload = new HashMap<>();
+
+			firebasePayload.put("orderId", dto.getOrderId());
+
+			firebasePayload.put("orderNo", getMapValue(receiptData, "receiptNo", "receipt_no"));
+
+			firebasePayload.put("waitingNo", getMapValue(receiptData, "waitingNo", "waiting_no"));
+
+			firebasePayload.put("items", receiptData.getOrDefault("items", List.of()));
+
+			firebasePayload.put("status", "결제완료");
+
+			firebasePayload.put("totalPrice", getMapValue(receiptData, "finalAmount", "totalPrice", "total_price"));
+
+			firebasePayload.put("paymentMethod", getMapValue(receiptData, "paymentMethod", "payment_method"));
+
+			Object branchValue = getMapValue(order, "branchId", "branch_id");
+
+			int branchId = convertToInteger(branchValue, 1);
+
+			firebaseService.sendOrderToBranch(branchId, dto.getOrderId(), firebasePayload);
+
+			System.out.println(">>> Firebase 주문 전송 완료" + " - branchId: " + branchId + ", orderId: " + dto.getOrderId());
+
+		} catch (Exception exception) {
+			System.err.println(">>> Firebase 실시간 주문 전송 실패" + " (결제는 정상 처리됨): " + exception.getMessage());
+		}
+	}
+
+	/**
+	 * Map에서 필수 정수값 추출
 	 */
 	private int getRequiredInteger(Map<String, Object> map, String... keys) {
 
@@ -516,8 +588,9 @@ public class PaymentService {
 		if (value != null) {
 			try {
 				return Integer.parseInt(String.valueOf(value));
+
 			} catch (NumberFormatException ignored) {
-				// 아래 공통 예외 처리로 이동
+				// 아래 공통 예외로 처리
 			}
 		}
 
@@ -525,9 +598,34 @@ public class PaymentService {
 	}
 
 	/**
+	 * Object 값을 Integer로 변환
+	 */
+	private int convertToInteger(Object value, int defaultValue) {
+
+		if (value instanceof Number number) {
+			return number.intValue();
+		}
+
+		if (value != null) {
+			try {
+				return Integer.parseInt(String.valueOf(value));
+
+			} catch (NumberFormatException ignored) {
+				return defaultValue;
+			}
+		}
+
+		return defaultValue;
+	}
+
+	/**
 	 * Map의 키 이름 차이를 고려한 값 조회
 	 */
 	private Object getMapValue(Map<String, Object> map, String... keys) {
+
+		if (map == null) {
+			return null;
+		}
 
 		for (String key : keys) {
 			if (map.containsKey(key)) {
