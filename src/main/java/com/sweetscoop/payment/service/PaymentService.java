@@ -215,10 +215,13 @@ public class PaymentService {
         }
 
         /*
-         * 5. 주문 상태 및 대기번호 갱신
+         * 5. 주문 상태 및 대기번호 갱신 (순차 번호 적용)
          */
-        int waitingNo =
-                (int) (Math.random() * 900) + 100;
+        // 데이터베이스에서 현재 가장 큰 웨이팅 번호를 조회해옵니다. (없으면 0 반환)
+        Integer maxWaitingNo = paymentMapper.selectMaxWaitingNo();
+        
+        // 기존 번호가 없으면 1부터 시작, 있으면 +1 증가시킵니다.
+        int waitingNo = (maxWaitingNo == null || maxWaitingNo < 0) ? 1 : maxWaitingNo + 1;
 
         int orderResult =
                 paymentMapper.updateOrderStatus(

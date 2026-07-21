@@ -43,6 +43,10 @@
         )
     </insert>
 
+	<!-- 💡 새로 추가해야 할 대기 번호 최댓값 조회 쿼리 -->
+    <select id="selectMaxWaitingNo" resultType="integer">
+	    SELECT MAX(waiting_no) FROM ORDERS
+	</select>
     <update id="updateOrderStatus">
         UPDATE ORDERS
         SET
@@ -70,19 +74,30 @@
         WHERE o.id = #{orderId}
     </select>
 
-    <select id="selectOrderItems"
-            resultType="map">
-        SELECT
-            m.name AS menuName,
-            oi.quantity AS quantity,
-            oi.total_price AS price
-        FROM ORDERITEM oi
-        JOIN ORDERITEMMENU oim
-            ON oi.id = oim.order_item_id
-        JOIN MENU m
-            ON oim.menu_id = m.id
-        WHERE oi.order_id = #{orderId}
-        ORDER BY oi.id, oim.id
-    </select>
+    <select id="selectOrderItems" resultType="map">
+	    SELECT
+	        oi.id AS orderItemId,
+	        s.name AS sizeName,
+	        oi.quantity AS quantity,
+	        oi.total_price AS price,
+	        -- 선택한 맛들을 쉼표로 자동 결합 (예: 바닐라, 초코, 그린티)
+	        GROUP_CONCAT(DISTINCT m.name ORDER BY oim.id SEPARATOR ', ') AS flavors,
+	        -- 추가 옵션들을 쉼표로 자동 결합 (예: 초코 코팅 추가)
+	        GROUP_CONCAT(DISTINCT mo.name ORDER BY oio.id SEPARATOR ', ') AS options
+	    FROM ORDERITEM oi
+	    LEFT JOIN SIZE s 
+	        ON oi.size_id = s.id
+	    LEFT JOIN ORDERITEMMENU oim 
+	        ON oi.id = oim.order_item_id
+	    LEFT JOIN MENU m 
+	        ON oim.menu_id = m.id
+	    LEFT JOIN ORDERITEMOPTION oio 
+	        ON oi.id = oio.order_item_id
+	    LEFT JOIN MENU_OPTION mo 
+	        ON oio.menu_option_id = mo.id
+	    WHERE oi.order_id = #{orderId}
+	    GROUP BY oi.id, s.name, oi.quantity, oi.total_price
+	    ORDER BY oi.id
+	</select>
 
 </mapper>
