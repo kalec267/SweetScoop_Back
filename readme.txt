@@ -47,5 +47,7 @@ CORS 수정
                     "ORDERS 상태 업데이트 실패"
             );
         }
+        
+        ** git push할 경우 toss key로 인해 보안이 걸려서 사이트에서 보안을 허용해야함(test 선택)
 
 
