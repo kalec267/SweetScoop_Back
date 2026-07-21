@@ -49,5 +49,6 @@ CORS 수정
         }
         
         ** git push할 경우 toss key로 인해 보안이 걸려서 사이트에서 보안을 허용해야함(test 선택)
+        ㄴ Message Details에 뜨는 문구중 맨 아래로 내려 있는 사이트로 이동 후 허용
 
 
