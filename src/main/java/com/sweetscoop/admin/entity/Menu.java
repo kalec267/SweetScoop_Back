@@ -27,6 +27,8 @@ public class Menu {
 
     @Column(name = "menu_img", length = 500, columnDefinition = "VARCHAR(500) COMMENT '메뉴 이미지 경로'") // 👈 수정
     private String menuImg;
+    
+    private Integer price;
 
     // 정보 수정을 위한 도메인 비즈니스 메서드
     public void updateMenuDetails(Integer categoryId, Integer itemId, String name, String menuImg) {
@@ -34,5 +36,13 @@ public class Menu {
         this.itemId = itemId;
         this.name = name;
         this.menuImg = menuImg;
+    }
+    
+    // Menu 가격 변경 비즈니스 메서드
+    public void updatePrice(Integer price) {
+        if (price != null && price < 0) {
+            throw new IllegalArgumentException("가격은 0원 이상이어야 합니다.");
+        }
+        this.price = price;
     }
 }
