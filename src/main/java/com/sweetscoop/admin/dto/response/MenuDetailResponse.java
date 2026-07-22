@@ -11,6 +11,7 @@ public class MenuDetailResponse {
     private String itemName;     // ITEM 테이블 조인 결과
     private String name;
     private String menuImg;
+    private Integer price;
     private Integer categoryId;
     private Integer itemId;
     

@@ -33,26 +33,26 @@ public class MenuAdminController {
 	private final MenuRepository menuRepository; // 👈 의존성 주입
 	private final SizeRepository sizeRepository;
 
-    // 1. 메뉴 전체 조회 (진짜 DB 데이터 반환하도록 완성)
+	// 1. 메뉴 전체 조회 (price 매핑 추가)
 	@GetMapping
-    public ResponseEntity<List<MenuDetailResponse>> getAllMenus() {
-        List<Menu> menus = menuRepository.findAll();
-        
-        List<MenuDetailResponse> response = menus.stream()
-                .map(m -> MenuDetailResponse.builder()
-                        .id(m.getId())
-                        .name(m.getName())
-                        .menuImg(m.getMenuImg())
-                        .categoryName(String.valueOf(m.getCategoryId())) 
-                        .itemName("물류 ID: " + m.getItemId())
-                        // 💡 [추가] 새로 추가한 ID 필드들에 엔티티의 값을 그대로 맵핑해 줍니다.
-                        .categoryId(m.getCategoryId())
-                        .itemId(m.getItemId())
-                        .build())
-                .collect(Collectors.toList());
+	public ResponseEntity<List<MenuDetailResponse>> getAllMenus() {
+	    List<Menu> menus = menuRepository.findAll();
+	    
+	    List<MenuDetailResponse> response = menus.stream()
+	            .map(m -> MenuDetailResponse.builder()
+	                    .id(m.getId())
+	                    .name(m.getName())
+	                    .menuImg(m.getMenuImg())
+	                    .categoryName(String.valueOf(m.getCategoryId())) 
+	                    .itemName("물류 ID: " + m.getItemId())
+	                    .categoryId(m.getCategoryId())
+	                    .itemId(m.getItemId())
+	                    .price(m.getPrice()) // 👈 💡 [핵심] price 필드 매핑 추가!
+	                    .build())
+	            .collect(Collectors.toList());
 
-        return ResponseEntity.ok(response);
-    }
+	    return ResponseEntity.ok(response);
+	}
 
     // 2. 메뉴 등록 로직도 완성해둡니다.
     @PostMapping
@@ -83,20 +83,21 @@ public class MenuAdminController {
         return ResponseEntity.ok("메뉴 정보가 성공적으로 수정되었습니다.");
     }
 
-    // 4. 메뉴 가격 변경 (가격 변경 - SIZE 테이블 연동 인터페이스)
-    @PatchMapping("/sizes/{sizeId}/price")
-    @Transactional // ⚠️ 데이터 수정을 위한 트랜잭션 필수 추가
-    public ResponseEntity<String> updateMenuPrice(@PathVariable Integer sizeId, @RequestBody MenuPriceUpdateRequestDto dto) {
+    // 4. 메뉴 가격 변경 (가격 변경 - MENU 테이블 연동 인터페이스)
+    @PatchMapping("/{id}/price") // 👈 '/sizes/{sizeId}/price' 에서 '/{id}/price' 로 수정!
+    @Transactional
+    public ResponseEntity<String> updateMenuPrice(
+            @PathVariable Integer id, // 👈 sizeId 대신 id(menuId)로 받음
+            @RequestBody MenuPriceUpdateRequestDto dto) {
         
-        // 1. SIZE 테이블에서 변경할 규격(싱글레귤러, 파인트 등)을 찾습니다.
-        Size size = sizeRepository.findById(sizeId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사이즈 규격 ID입니다: " + sizeId));
+        // 1. MENU 테이블에서 해당 메뉴 조회
+        Menu menu = menuRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 메뉴 ID입니다: " + id));
 
-        // 2. 엔티티 내부의 setter나 비즈니스 메서드를 통해 가격 변경 (dirty checking 작동)
-        // 예시: size.changePrice(dto.getPrice()); 혹은 엔티티 스펙에 맞게 가격 수정 로직 반영
-        // 여기서는 기본 setter가 열려있거나 엔티티 내 메소드가 있다고 가정합니다.
+        // 2. 가격 변경 (Dirty Checking에 의해 DB 자동 UPDATE)
+        menu.updatePrice(dto.getPrice());
         
-        return ResponseEntity.ok("해당 규격의 가격이 성공적으로 변경되었습니다.");
+        return ResponseEntity.ok("메뉴 가격이 성공적으로 변경되었습니다.");
     }
 
     // 5. 메뉴 삭제 (메뉴 삭제)

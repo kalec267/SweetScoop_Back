@@ -3,9 +3,11 @@ package com.sweetscoop.firebase;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
-import org.springframework.context.annotation.Configuration;
+
 import jakarta.annotation.PostConstruct;
-import java.io.FileInputStream;
+
+import org.springframework.context.annotation.Configuration;
+
 import java.io.IOException;
 
 @Configuration
@@ -13,19 +15,34 @@ public class FirebaseConfig {
 
     @PostConstruct
     public void initialize() {
+
         try {
-            FileInputStream serviceAccount =
-                    new FileInputStream("src/main/resources/firebase/serviceAccountKey.json");
+            if (!FirebaseApp.getApps().isEmpty()) {
+                return;
+            }
 
             FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .setCredentials(
+                            GoogleCredentials.getApplicationDefault()
+                    )
+                    .setProjectId("sweetscoop-f5ca9")
                     .build();
 
-            if (FirebaseApp.getApps().isEmpty()) {
-                FirebaseApp.initializeApp(options);
-            }
+            FirebaseApp.initializeApp(options);
+
+            System.out.println("Firebase 초기화 완료");
+            System.out.println(
+                    "Firebase 프로젝트 ID: "
+                    + FirebaseApp.getInstance()
+                            .getOptions()
+                            .getProjectId()
+            );
+
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException(
+                    "Firebase 초기화 실패",
+                    e
+            );
         }
     }
 }

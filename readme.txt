@@ -22,13 +22,15 @@ CORS 수정
 260719
 
 (회원가입 로직 생성)
-[RegisterController.java,RegisterService.java]
+[RegisterController.java, RegisterService.java]
 
 (DTO 클래스 분리)
-[LoginRequestDto,RegisterSaveDto,LoginResponse]
+[LoginRequestDto, RegisterSaveDto, LoginResponse]
 
->>>>>>> origin/dev1_hj
+=======
+260722
 
+<<<<<<< HEAD
 260721
 - firebase 연결을 위한 firebase 패키지 생성
 ㄴ resources 파일에 firebase 폴더 생성 후 json 파일 생성
@@ -63,3 +65,8 @@ CORS 수정
         ㄴ Message Details에 뜨는 문구중 맨 아래로 내려 있는 사이트로 이동 후 허용
 
 
+=======
+
+(메뉴관리페이지의 -가격수정 로직 생성)
+[MenuAdminController.java, MenuDetailResponse.java, Menu.java‎]
+>>>>>>> origin/dev1_hj_back
