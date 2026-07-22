@@ -22,10 +22,14 @@ CORS 수정
 260719
 
 (회원가입 로직 생성)
-[RegisterController.java,RegisterService.java]
+[RegisterController.java, RegisterService.java]
 
 (DTO 클래스 분리)
-[LoginRequestDto,RegisterSaveDto,LoginResponse]
+[LoginRequestDto, RegisterSaveDto, LoginResponse]
 
->>>>>>> origin/dev1_hj
+=======
+260722
 
+
+(메뉴관리페이지의 -가격수정 로직 생성)
+[MenuAdminController.java, MenuDetailResponse.java, Menu.java‎]
