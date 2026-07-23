@@ -16,12 +16,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import com.sweetscoop.item.entity.Item;
 
 @Entity
 @Table(name = "HQINVENTORY")
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
