@@ -5,17 +5,17 @@ import com.sweetscoop.inventory.entity.ScmHqInventory;
 import com.sweetscoop.inventory.entity.ScmHqStock;
 import com.sweetscoop.inventory.entity.ScmItem;
 import com.sweetscoop.inventory.repository.ScmBranchInventoryRepository;
+import com.sweetscoop.inventory.repository.ScmBranchRepository;
 import com.sweetscoop.inventory.repository.ScmHqInventoryRepository;
 import com.sweetscoop.inventory.repository.ScmHqStockRepository;
 import com.sweetscoop.inventory.repository.ScmItemRepository;
-import com.sweetscoop.inventory.repository.ScmBranchRepository;
-
-import com.sweetscoop.size.dto.SizeDTO;
-import com.sweetscoop.size.service.SizeService;
 import com.sweetscoop.menu.dto.MenuDTO;
 import com.sweetscoop.menu.repository.MenuDAO;
+import com.sweetscoop.size.dto.SizeDTO;
+import com.sweetscoop.size.service.SizeService;
 
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,280 +27,505 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class InventoryService { 
+public class InventoryService {
 
-    private final ScmBranchInventoryRepository branchInventoryRepository;
-    private final ScmHqInventoryRepository hqInventoryRepository;
-    private final ScmHqStockRepository hqStockRepository;
-    private final ScmBranchRepository branchRepository;
-    private final ScmItemRepository itemRepository;
+	private static final int BRANCH_AUTO_ORDER_THRESHOLD = 5000;
+	private static final int BRANCH_AUTO_ORDER_AMOUNT = 3000;
 
-    private final SizeService sizeService;
-    private final MenuDAO menuDAO;
+	private static final int HQ_MOCHI_THRESHOLD = 500;
+	private static final int HQ_WEIGHT_THRESHOLD = 50000;
 
-    // 지점별 재고 조회
-    public List<ScmBranchInventory> getBranchInventory(Integer branchId) {
-        return branchInventoryRepository.findByBranchId(branchId);
-    }
+	private static final int HQ_MOCHI_AUTO_SUPPLY_AMOUNT = 2000;
+	private static final int HQ_WEIGHT_AUTO_SUPPLY_AMOUNT = 200000;
 
-    // 재고 입고
-    @Transactional
-    public void importStock(Integer branchId, Integer itemId, int amount) {
-        ScmBranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
-                .orElseGet(() -> {
-                    ScmBranchInventory newInv = new ScmBranchInventory();
-                    newInv.setBranchId(branchId);
-                    newInv.setItemId(itemId);
-                    return branchInventoryRepository.save(newInv);
-                });
-        inventory.increaseStock(amount);
-    }
+	private final ScmBranchInventoryRepository branchInventoryRepository;
+	private final ScmHqInventoryRepository hqInventoryRepository;
+	private final ScmHqStockRepository hqStockRepository;
+	private final ScmBranchRepository branchRepository;
+	private final ScmItemRepository itemRepository;
 
-    // 단독 출고 및 자동 발주 검사 메서드
-    @Transactional
-    public void exportStock(Integer branchId, Integer itemId, int amount) {
-        ScmBranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
-                .orElseThrow(() -> new IllegalArgumentException("지점 재고 정보가 존재하지 않습니다. (지점: " + branchId + ", 물품: " + itemId + ")"));
-        
-        inventory.decreaseStock(amount);
+	private final SizeService sizeService;
+	private final MenuDAO menuDAO;
 
-        // 지점 재고가 5,000g 미만일 경우 자동으로 본사 발주 신청
-        if (inventory.getStockLevel() < 5000) {
-            checkAndTriggerAutoOrder(branchId, itemId);
-        }
-    }
+	/**
+	 * 지점별 재고 엔티티 조회
+	 */
+	public List<ScmBranchInventory> getBranchInventory(Integer branchId) {
+		validateId(branchId, "지점 ID");
 
-    @Transactional
-    public void exportStockForOrder(Integer branchId, Integer sizeId, List<Integer> selectedMenuIds) {
-        if (selectedMenuIds == null || selectedMenuIds.isEmpty()) {
-            return;
-        }
+		return branchInventoryRepository.findByBranchId(branchId);
+	}
 
-        // 1. SizeService를 통해 용기 총 중량(totalWeightG)과 선택 가능 맛 수(flavorCnt) 조회
-        SizeDTO size = sizeService.getSize(sizeId);
-        if (size == null) {
-            throw new IllegalArgumentException("존재하지 않는 용기 사이즈입니다.");
-        }
+	/**
+	 * 물품명, 카테고리명 등이 포함된 지점 재고 조회
+	 */
+	public List<Map<String, Object>> getBranchInventoryWithNames(Integer branchId) {
+		validateId(branchId, "지점 ID");
 
-        int totalWeightG = size.getTotalWeightG(); // 예: 파인트 336g
-        int flavorCnt = size.getFlavorCnt();       // 예: 파인트 3개
+		List<Object[]> rawData = branchInventoryRepository.findInventoryWithItemName(branchId);
 
-        if (flavorCnt <= 0) {
-            throw new IllegalArgumentException("용기의 선택 가능 맛 수량이 올바르지 않습니다.");
-        }
+		List<Map<String, Object>> result = new ArrayList<>();
 
-        // 2. 1개 맛 선택 시 차감할 기본 단위 중량 계산 (예: 336g / 3 = 112g)
-        int baseWeightPerFlavor = totalWeightG / flavorCnt;
+		for (Object[] row : rawData) {
+			if (row == null || row.length < 5) {
+				continue;
+			}
 
-        // 3. 중복 선택된 메뉴(menuId) 수량 카운팅 (Map<MenuId, 선택수량>)
-        Map<Integer, Integer> menuSelectCountMap = new HashMap<>();
-        for (Integer menuId : selectedMenuIds) {
-            menuSelectCountMap.put(menuId, menuSelectCountMap.getOrDefault(menuId, 0) + 1);
-        }
+			Map<String, Object> inventory = new HashMap<>();
 
-        // 4. 각 메뉴별로 MenuDAO를 이용해 원자재(itemId)를 찾고 (기본 중량 * 선택 수량)만큼 차감
-        for (Map.Entry<Integer, Integer> entry : menuSelectCountMap.entrySet()) {
-            Integer menuId = entry.getKey();
-            Integer selectCount = entry.getValue();
+			inventory.put("itemId", row[0]);
+			inventory.put("itemName", row[1]);
+			inventory.put("categoryName", row[2]);
+			inventory.put("stockLevel", row[3]);
+			inventory.put("unit", row[4]);
 
-            // MenuDAO를 사용하여 menuId에 연결된 실제 원자재 ID(itemId) 조회
-            MenuDTO menu = menuDAO.findById(menuId);
-            if (menu == null || menu.getItemId() == null) {
-                throw new IllegalArgumentException("메뉴 정보 또는 매핑된 원자재(Item) ID가 존재하지 않습니다. (Menu ID: " + menuId + ")");
-            }
+			result.add(inventory);
+		}
 
-            Integer itemId = menu.getItemId();
+		return result;
+	}
 
-            // 최종 차감할 중량 계산 (예: 엄마는외계인 112g * 2 = 224g)
-            int finalDeductAmount = baseWeightPerFlavor * selectCount;
+	/**
+	 * 지점 재고 입고
+	 */
+	@Transactional
+	public void importStock(Integer branchId, Integer itemId, int amount) {
+		validateId(branchId, "지점 ID");
+		validateId(itemId, "물품 ID");
+		validatePositiveAmount(amount);
 
-            // 지점 재고 차감 및 자동 발주 검사 실행
-            exportStock(branchId, itemId, finalDeductAmount);
-        }
-    }
+		ScmBranchInventory inventory = getOrCreateBranchInventory(branchId, itemId);
 
-    // 내부 자동 발주 트리거 메서드
-    private void checkAndTriggerAutoOrder(Integer branchId, Integer itemId) {
-        boolean hasPendingOrder = hqInventoryRepository.existsByBranchIdAndItemIdAndApprovalStatus(branchId, itemId, "PENDING");
-        
-        if (!hasPendingOrder) {
-            ScmHqInventory autoOrder = new ScmHqInventory();
-            autoOrder.setBranchId(branchId);
-            autoOrder.setItemId(itemId);
-            autoOrder.setApprovalStatus("PENDING");
-            autoOrder.setDeliveryStatus("PREPARING");
-            autoOrder.setRequestQuantity(3000); 
-            
-            hqInventoryRepository.save(autoOrder);
-        }
-    }
-    
-    // 지점 발주 승인 로직
-    @Transactional
-    public void importHqOrder(Integer hqInventoryId) {
-        ScmHqInventory hqOrder = hqInventoryRepository.findById(hqInventoryId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 발주 건입니다."));
+		inventory.increaseStock(amount);
 
-        if ("ARRIVED".equals(hqOrder.getDeliveryStatus()) || "COMPLETED".equals(hqOrder.getApprovalStatus())) {
-            throw new IllegalStateException("이미 처리가 완료된 발주 건입니다.");
-        }
+		branchInventoryRepository.save(inventory);
+	}
 
-        ScmHqStock hqStock = hqStockRepository.findByItemId(hqOrder.getItemId())
-                .orElseThrow(() -> new IllegalArgumentException("본사 창고에 등록되지 않은 물품입니다."));
+	/**
+	 * 지점 재고 단독 출고 및 자동 발주 확인
+	 */
+	@Transactional
+	public void exportStock(Integer branchId, Integer itemId, int amount) {
+		validateId(branchId, "지점 ID");
+		validateId(itemId, "물품 ID");
+		validatePositiveAmount(amount);
 
-        // 본사 재고 차감
-        hqStock.decreaseStock(hqOrder.getRequestQuantity());
-        hqStockRepository.save(hqStock);
+		ScmBranchInventory inventory = branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId)
+				.orElseThrow(() -> new IllegalArgumentException(
+						"지점 재고 정보가 존재하지 않습니다. " + "(지점: " + branchId + ", 물품: " + itemId + ")"));
 
-        // ScmItem을 조회해서 categoryId 기반으로 임계치 설정
-        ScmItem item = itemRepository.findById(hqOrder.getItemId())
-                .orElseThrow(() -> new IllegalArgumentException("원자재(Item) 정보가 존재하지 않습니다."));
+		inventory.decreaseStock(amount);
 
-        // categoryId가 2(모찌류)이면 500개, 그 외(아이스크림/원두)는 50,000g 기준
-        boolean isMochiCategory = (item.getCategoryId() != null && item.getCategoryId() == 2);
-        int threshold = isMochiCategory ? 500 : 50000;
+		branchInventoryRepository.save(inventory);
 
-        if (hqStock.getStockLevel() < threshold) {
-            triggerHqAutoOrderFromFactory(item);
-        }
+		if (inventory.getStockLevel() < BRANCH_AUTO_ORDER_THRESHOLD) {
+			checkAndTriggerAutoOrder(branchId, itemId);
+		}
+	}
 
-        // 발주 상태 완료 처리
-        hqOrder.setDeliveryStatus("APPROVED"); 
-        hqOrder.setApprovalStatus("준비중");
-        hqInventoryRepository.save(hqOrder);
+	/**
+	 * 주문 완료 시 선택 메뉴별 원자재 재고 차감
+	 */
+	@Transactional
+	public void exportStockForOrder(Integer branchId, Integer sizeId, List<Integer> selectedMenuIds) {
+		validateId(branchId, "지점 ID");
+		validateId(sizeId, "사이즈 ID");
+
+		if (selectedMenuIds == null || selectedMenuIds.isEmpty()) {
+			return;
+		}
+
+		SizeDTO size = sizeService.getSize(sizeId);
+
+		if (size == null) {
+			throw new IllegalArgumentException("존재하지 않는 용기 사이즈입니다.");
+		}
+
+		int totalWeightG = size.getTotalWeightG();
+
+		int flavorCount = size.getFlavorCnt();
+
+		if (totalWeightG <= 0) {
+			throw new IllegalArgumentException("용기의 총 중량이 올바르지 않습니다.");
+		}
+
+		if (flavorCount <= 0) {
+			throw new IllegalArgumentException("용기의 선택 가능 맛 수량이 올바르지 않습니다.");
+		}
+
+		int baseWeightPerFlavor = totalWeightG / flavorCount;
+
+		if (baseWeightPerFlavor <= 0) {
+			throw new IllegalArgumentException("맛별 차감 중량을 계산할 수 없습니다.");
+		}
+
+		Map<Integer, Integer> menuSelectCountMap = new HashMap<>();
+
+		for (Integer menuId : selectedMenuIds) {
+			validateId(menuId, "메뉴 ID");
+
+			menuSelectCountMap.put(menuId, menuSelectCountMap.getOrDefault(menuId, 0) + 1);
+		}
+
+		for (Map.Entry<Integer, Integer> entry : menuSelectCountMap.entrySet()) {
+			Integer menuId = entry.getKey();
+
+			Integer selectCount = entry.getValue();
+
+			MenuDTO menu = menuDAO.findById(menuId);
+
+			if (menu == null || menu.getItemId() == null) {
+				throw new IllegalArgumentException("메뉴에 연결된 원자재 정보가 없습니다. " + "(Menu ID: " + menuId + ")");
+			}
+
+			int finalDeductAmount = Math.multiplyExact(baseWeightPerFlavor, selectCount);
+
+			exportStock(branchId, menu.getItemId(), finalDeductAmount);
+		}
+	}
+
+	/**
+	 * 지점 재고 부족 시 자동 발주 생성
+	 */
+	private void checkAndTriggerAutoOrder(Integer branchId, Integer itemId) {
+		boolean hasPendingOrder = hqInventoryRepository.existsByBranchIdAndItemIdAndApprovalStatus(branchId, itemId,
+				"PENDING");
+
+		if (hasPendingOrder) {
+			return;
+		}
+
+		ScmHqInventory autoOrder = new ScmHqInventory();
+
+		autoOrder.setBranchId(branchId);
+		autoOrder.setItemId(itemId);
+		autoOrder.setApprovalStatus("PENDING");
+		autoOrder.setDeliveryStatus("PREPARING");
+		autoOrder.setRequestQuantity(BRANCH_AUTO_ORDER_AMOUNT);
+
+		hqInventoryRepository.save(autoOrder);
+	}
+
+	/**
+	 * 지점 수동 발주 생성
+	 */
+	@Transactional
+	public void createManualOrder(Integer branchId, Integer itemId, int amount) {
+		validateId(branchId, "지점 ID");
+		validateId(itemId, "물품 ID");
+		validatePositiveAmount(amount);
+
+		branchRepository.findById(branchId)
+				.orElseThrow(() -> new IllegalArgumentException("존재하지 않는 지점입니다. " + "ID: " + branchId));
+
+		itemRepository.findById(itemId)
+				.orElseThrow(() -> new IllegalArgumentException("존재하지 않는 원자재입니다. " + "ID: " + itemId));
+
+		ScmHqInventory manualOrder = new ScmHqInventory();
+
+		manualOrder.setBranchId(branchId);
+		manualOrder.setItemId(itemId);
+		manualOrder.setApprovalStatus("PENDING");
+		manualOrder.setDeliveryStatus("PREPARING");
+		manualOrder.setRequestQuantity(amount);
+
+		hqInventoryRepository.save(manualOrder);
+	}
+
+	/**
+	 * 지점 발주 승인
+	 *
+	 * 승인 시: - 본사 재고 차감 - 승인 상태 COMPLETED - 배송 상태 PREPARING
+	 *
+	 * 지점 재고 증가는 배송완료 처리 시 수행
+	 */
+	@Transactional
+	public void importHqOrder(Integer hqInventoryId) {
+		validateId(hqInventoryId, "본사 발주 ID");
+
+		ScmHqInventory hqOrder = hqInventoryRepository.findById(hqInventoryId)
+				.orElseThrow(() -> new IllegalArgumentException("존재하지 않는 발주 건입니다. " + "ID: " + hqInventoryId));
+
+		String approvalStatus = normalizeStatus(hqOrder.getApprovalStatus());
+
+		if ("COMPLETED".equals(approvalStatus) || "APPROVED".equals(approvalStatus)
+				|| "승인완료".equals(hqOrder.getApprovalStatus())) {
+			throw new IllegalStateException("이미 승인된 발주 건입니다.");
+		}
+
+		if (isDeliveryCompleted(hqOrder.getDeliveryStatus())) {
+			throw new IllegalStateException("이미 배송이 완료된 발주 건입니다.");
+		}
+
+		int requestQuantity = hqOrder.getRequestQuantity();
+
+		validatePositiveAmount(requestQuantity);
+
+		ScmHqStock hqStock = hqStockRepository.findByItemId(hqOrder.getItemId()).orElseThrow(
+				() -> new IllegalArgumentException("본사 창고에 등록되지 않은 물품입니다. " + "물품 ID: " + hqOrder.getItemId()));
+
+		ScmItem item = itemRepository.findById(hqOrder.getItemId()).orElseThrow(
+				() -> new IllegalArgumentException("원자재 정보가 존재하지 않습니다. " + "물품 ID: " + hqOrder.getItemId()));
+
+		hqStock.decreaseStock(requestQuantity);
+
+		hqStockRepository.save(hqStock);
+
+		hqOrder.setApprovalStatus("COMPLETED");
+		hqOrder.setDeliveryStatus("PREPARING");
+
+		hqInventoryRepository.save(hqOrder);
+
+		int threshold = isMochiCategory(item) ? HQ_MOCHI_THRESHOLD : HQ_WEIGHT_THRESHOLD;
+
+		if (hqStock.getStockLevel() < threshold) {
+			triggerHqAutoOrderFromFactory(item);
+		}
+	}
+
+	/**
+	 * 본사 창고 재고 충전
+	 */
+	@Transactional
+	public void chargeHqStock(Integer itemId, int amount) {
+		validateId(itemId, "물품 ID");
+		validatePositiveAmount(amount);
+
+		itemRepository.findById(itemId)
+				.orElseThrow(() -> new IllegalArgumentException("존재하지 않는 원자재입니다. " + "ID: " + itemId));
+
+		ScmHqStock hqStock = hqStockRepository.findByItemId(itemId).orElseGet(() -> {
+			ScmHqStock newStock = new ScmHqStock();
+
+			newStock.setItemId(itemId);
+			newStock.setStockLevel(0);
+
+			return hqStockRepository.save(newStock);
+		});
+
+		hqStock.increaseStock(amount);
+
+		hqStockRepository.save(hqStock);
+	}
+
+	/**
+	 * 전체 본사 발주 목록을 지점명과 원자재명 포함 형태로 조회
+	 */
+	public List<Map<String, Object>> getAllHqOrdersWithNames() {
+
+		List<ScmHqInventory> rawOrders = hqInventoryRepository.findAll();
+
+		Map<Integer, String> branchNameMap = new HashMap<>();
+
+		branchRepository.findAll().forEach(branch -> branchNameMap.put(branch.getId(), branch.getBranchName()));
+
+		Map<Integer, String> itemNameMap = new HashMap<>();
+
+		itemRepository.findAll().forEach(item -> itemNameMap.put(item.getId(), item.getItemName()));
+
+		List<Map<String, Object>> result = new ArrayList<>();
+
+		for (ScmHqInventory order : rawOrders) {
+			Map<String, Object> orderMap = new HashMap<>();
+
+			Integer branchId = order.getBranchId();
+
+			Integer itemId = order.getItemId();
+
+			orderMap.put("hqInventoryId", order.getId());
+
+			/*
+			 * 프론트엔드에서 requestId를 사용하는 경우를 위해 같은 값을 함께 제공
+			 */
+			orderMap.put("requestId", order.getId());
+
+			orderMap.put("branchId", branchId);
+
+			orderMap.put("branchName", branchNameMap.getOrDefault(branchId, "미등록 지점(#" + branchId + ")"));
+
+			orderMap.put("itemId", itemId);
+
+			orderMap.put("itemName", itemNameMap.getOrDefault(itemId, "미등록 원자재(#" + itemId + ")"));
+
+			orderMap.put("requestQuantity", order.getRequestQuantity());
+
+			orderMap.put("approvalStatus", order.getApprovalStatus());
+
+			orderMap.put("deliveryStatus", order.getDeliveryStatus());
+
+			result.add(orderMap);
+		}
+
+		return result;
+	}
+
+	/**
+	 * 배송 상태 변경
+	 *
+	 * 배송완료 상태로 최초 변경될 때에만 지점 재고를 증가시킨다.
+	 */
+	@Transactional
+	public void updateDeliveryStatus(Integer requestId, String deliveryStatus) {
+		validateId(requestId, "배송 요청 ID");
+
+		String normalizedNewStatus = normalizeDeliveryStatus(deliveryStatus);
+
+		ScmHqInventory hqOrder = hqInventoryRepository.findById(requestId)
+				.orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배송 요청입니다. " + "ID: " + requestId));
+
+		String previousStatus = normalizeDeliveryStatus(hqOrder.getDeliveryStatus());
+
+		if ("PENDING".equals(normalizeStatus(hqOrder.getApprovalStatus()))) {
+			throw new IllegalStateException("승인되지 않은 발주 건은 배송 상태를 변경할 수 없습니다.");
+		}
 
 		/*
-		 * // 지점 재고 가산 ScmBranchInventory branchStock = branchInventoryRepository
-		 * .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
-		 * .orElseGet(() -> { ScmBranchInventory newStock = new ScmBranchInventory();
-		 * newStock.setBranchId(hqOrder.getBranchId());
-		 * newStock.setItemId(hqOrder.getItemId()); newStock.setStockLevel(0); return
-		 * branchInventoryRepository.save(newStock); });
-		 * 
-		 * branchStock.increaseStock(hqOrder.getRequestQuantity());
-		 * branchInventoryRepository.save(branchStock);
+		 * 이미 배송완료인 건은 다시 완료 처리하지 않도록 방지
 		 */
-    }
+		if ("ARRIVED".equals(previousStatus) && "ARRIVED".equals(normalizedNewStatus)) {
+			return;
+		}
 
-    private void triggerHqAutoOrderFromFactory(ScmItem item) {
-        // categoryId가 2(모찌류)이면 2,000개, 그 외는 200,000g 수급 요청
-        boolean isMochiCategory = (item.getCategoryId() != null && item.getCategoryId() == 2);
-        int autoSupplyAmount = isMochiCategory ? 2000 : 200000;
-        String unitName = isMochiCategory ? "ea" : "g";
+		validateDeliveryTransition(previousStatus, normalizedNewStatus);
 
-        System.out.println("본사 창고 물품 [" + item.getItemName() + " (ID: #" + item.getId() + ")] 재고 부족 감지!");
-        System.out.println("공장 제조 라인에 원재료 " + autoSupplyAmount + unitName + " 자동 보충 요청 전송 완료.");
-    }
+		boolean firstCompletion = !"ARRIVED".equals(previousStatus) && "ARRIVED".equals(normalizedNewStatus);
 
-    @Transactional
-    public void chargeHqStock(Integer itemId, int amount) {
-        ScmHqStock hqStock = hqStockRepository.findByItemId(itemId)
-                .orElseGet(() -> {
-                    ScmHqStock newStock = new ScmHqStock();
-                    newStock.setItemId(itemId);
-                    newStock.setStockLevel(0);
-                    return hqStockRepository.save(newStock);
-                });
-        hqStock.increaseStock(amount);
-        hqStockRepository.save(hqStock);
-    }
+		hqOrder.setDeliveryStatus(normalizedNewStatus);
 
-    public List<Map<String, Object>> getBranchInventoryWithNames(Integer branchId) {
-        List<Object[]> rawData = branchInventoryRepository.findInventoryWithItemName(branchId);
-        List<Map<String, Object>> result = new ArrayList<>();
+		hqInventoryRepository.save(hqOrder);
 
-        for (Object[] row : rawData) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("itemId", row[0]);
-            map.put("itemName", row[1]);      
-            map.put("categoryName", row[2]);  
-            map.put("stockLevel", row[3]);    
-            map.put("unit", row[4]);          
-            result.add(map);
-        }
-        return result;
-    }
+		/*
+		 * 배송이 처음 완료되는 순간에만 지점 재고 증가
+		 */
+		if (firstCompletion) {
+			increaseBranchStockFromDelivery(hqOrder);
+		}
+	}
 
-    @Transactional
-    public void createManualOrder(Integer branchId, Integer itemId, int amount) {
-        ScmHqInventory manualOrder = new ScmHqInventory();
-        manualOrder.setBranchId(branchId);
-        manualOrder.setItemId(itemId);
-        manualOrder.setApprovalStatus("PENDING");   
-        manualOrder.setDeliveryStatus("PREPARING");
-        manualOrder.setRequestQuantity(amount);     
-        
-        hqInventoryRepository.save(manualOrder);
-    }
-    
-    public List<Map<String, Object>> getAllHqOrdersWithNames() {
-        List<ScmHqInventory> rawOrders = hqInventoryRepository.findAll();
-        
-        Map<Integer, String> branchNameMap = new HashMap<>();
-        branchRepository.findAll().forEach(b -> branchNameMap.put(b.getId(), b.getBranchName()));
+	/**
+	 * 배송 완료에 따른 지점 재고 증가
+	 */
+	private void increaseBranchStockFromDelivery(ScmHqInventory hqOrder) {
+		int requestQuantity = hqOrder.getRequestQuantity();
 
-        Map<Integer, String> itemNameMap = new HashMap<>();
-        itemRepository.findAll().forEach(item -> itemNameMap.put(item.getId(), item.getItemName()));
-        
-        List<Map<String, Object>> result = new ArrayList<>();
+		validatePositiveAmount(requestQuantity);
 
-        for (ScmHqInventory order : rawOrders) {
-            Map<String, Object> map = new HashMap<>();
-            map.put("hqInventoryId", order.getId());
-            map.put("branchId", order.getBranchId());
-            
-            String branchName = branchNameMap.getOrDefault(order.getBranchId(), "미등록 지점(#" + order.getBranchId() + ")");
-            map.put("branchName", branchName); 
-            
-            map.put("itemId", order.getItemId());
-            String itemName = itemNameMap.getOrDefault(order.getItemId(), "미등록 원자재(#" + order.getItemId() + ")");
-            map.put("itemName", itemName); 
-            map.put("requestQuantity", order.getRequestQuantity());
-            map.put("approvalStatus", order.getApprovalStatus()); 
-            map.put("deliveryStatus", order.getDeliveryStatus());   
-            result.add(map);
-        }
-        return result;
-    }
-    
-    @Transactional
-    public void updateDeliveryStatus(Integer requestId, String deliveryStatus) {
-        // 1. Direct JPQL 쿼리로 DB 테이블 강제 UPDATE 실행 (update HQINVENTORY set delivery_status=...)
-        int updatedCount = hqInventoryRepository.updateDeliveryStatusDirect(requestId, deliveryStatus);
+		ScmBranchInventory branchInventory = getOrCreateBranchInventory(hqOrder.getBranchId(), hqOrder.getItemId());
 
-        if (updatedCount == 0) {
-            throw new IllegalArgumentException("존재하지 않는 배송 요청입니다. ID: " + requestId);
-        }
+		branchInventory.increaseStock(requestQuantity);
 
-        // 2. 재고 가산을 위해 해당 발주 건 정보 조회
-        ScmHqInventory hqOrder = hqInventoryRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("배송 요청 조회 실패 ID: " + requestId));
+		branchInventoryRepository.save(branchInventory);
 
-        // 3. '배송완료' 상태일 때만 지점 재고 가산
-        boolean isCompleted = "배송완료".equals(deliveryStatus) 
-                           || "DELIVERED".equalsIgnoreCase(deliveryStatus)
-                           || "ARRIVED".equalsIgnoreCase(deliveryStatus)
-                           || "COMPLETED".equalsIgnoreCase(deliveryStatus);
+		System.out.println("[배송 완료] 지점(" + hqOrder.getBranchId() + ") / 원자재(" + hqOrder.getItemId() + ") / 입고 수량: "
+				+ requestQuantity);
+	}
 
-        if (isCompleted) {
-            ScmBranchInventory branchInv = branchInventoryRepository
-                    .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
-                    .orElseGet(() -> {
-                        ScmBranchInventory newInv = new ScmBranchInventory();
-                        newInv.setBranchId(hqOrder.getBranchId());
-                        newInv.setItemId(hqOrder.getItemId());
-                        newInv.setStockLevel(0);
-                        return newInv;
-                    });
+	/**
+	 * 지점 재고가 없으면 새로 생성
+	 */
+	private ScmBranchInventory getOrCreateBranchInventory(Integer branchId, Integer itemId) {
 
-            int newStockLevel = branchInv.getStockLevel() + hqOrder.getRequestQuantity();
-            branchInv.setStockLevel(newStockLevel);
+		return branchInventoryRepository.findByBranchIdAndItemId(branchId, itemId).orElseGet(() -> {
+			ScmBranchInventory newInventory = new ScmBranchInventory();
 
-            branchInventoryRepository.save(branchInv);
+			newInventory.setBranchId(branchId);
+			newInventory.setItemId(itemId);
+			newInventory.setStockLevel(0);
 
-            System.out.println("🚚 [배송 완료] 지점(" + hqOrder.getBranchId() + 
-                               ") / 원자재(" + hqOrder.getItemId() + 
-                               ") / 충전 수량: " + hqOrder.getRequestQuantity() + "g");
-        }
-    }
+			return branchInventoryRepository.save(newInventory);
+		});
+	}
+
+	/**
+	 * 배송 상태 전이 검증
+	 */
+	private void validateDeliveryTransition(String previousStatus, String newStatus) {
+		if (previousStatus.equals(newStatus)) {
+			return;
+		}
+
+		boolean validTransition = ("PREPARING".equals(previousStatus) && "SHIPPING".equals(newStatus))
+				|| ("SHIPPING".equals(previousStatus) && "ARRIVED".equals(newStatus));
+
+		if (!validTransition) {
+			throw new IllegalStateException("허용되지 않는 배송 상태 변경입니다. " + previousStatus + " → " + newStatus);
+		}
+	}
+
+	/**
+	 * 프론트엔드와 DB의 여러 배송 상태 표현을 표준화
+	 */
+	private String normalizeDeliveryStatus(String status) {
+		if (status == null || status.isBlank()) {
+			return "PREPARING";
+		}
+
+		String normalized = status.trim().toUpperCase();
+
+		return switch (normalized) {
+		case "준비중", "준비 중", "배송준비중", "배송 준비중", "READY", "WAITING", "PREPARING" -> "PREPARING";
+
+		case "배송중", "배송 중", "IN_TRANSIT", "SHIPPED", "SHIPPING" -> "SHIPPING";
+
+		case "배송완료", "배송 완료", "DELIVERED", "ARRIVED", "COMPLETED" -> "ARRIVED";
+
+		default -> throw new IllegalArgumentException("지원하지 않는 배송 상태입니다: " + status);
+		};
+	}
+
+	/**
+	 * 배송 완료 여부
+	 */
+	private boolean isDeliveryCompleted(String status) {
+		try {
+			return "ARRIVED".equals(normalizeDeliveryStatus(status));
+		} catch (IllegalArgumentException exception) {
+			return false;
+		}
+	}
+
+	/**
+	 * 일반 상태 문자열 정규화
+	 */
+	private String normalizeStatus(String status) {
+		if (status == null) {
+			return "";
+		}
+
+		return status.trim().toUpperCase();
+	}
+
+	/**
+	 * 모찌 카테고리 여부
+	 */
+	private boolean isMochiCategory(ScmItem item) {
+		return item.getCategoryId() != null && item.getCategoryId() == 2;
+	}
+
+	/**
+	 * 본사 재고 부족 시 공장 자동 보충 요청
+	 */
+	private void triggerHqAutoOrderFromFactory(ScmItem item) {
+		boolean mochiCategory = isMochiCategory(item);
+
+		int autoSupplyAmount = mochiCategory ? HQ_MOCHI_AUTO_SUPPLY_AMOUNT : HQ_WEIGHT_AUTO_SUPPLY_AMOUNT;
+
+		String unitName = mochiCategory ? "개" : "g";
+
+		System.out.println("본사 창고 물품 [" + item.getItemName() + " (ID: #" + item.getId() + ")] 재고 부족 감지");
+
+		System.out.println("공장 제조 라인에 " + autoSupplyAmount + unitName + " 자동 보충 요청 전송 완료");
+	}
+
+	private void validateId(Integer id, String fieldName) {
+		if (id == null || id <= 0) {
+			throw new IllegalArgumentException(fieldName + "는 1 이상의 값이어야 합니다.");
+		}
+	}
+
+	private void validatePositiveAmount(int amount) {
+		if (amount <= 0) {
+			throw new IllegalArgumentException("수량은 1 이상이어야 합니다.");
+		}
+	}
 }

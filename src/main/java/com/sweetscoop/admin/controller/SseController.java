@@ -1,45 +1,33 @@
 package com.sweetscoop.admin.controller;
 
+import com.sweetscoop.admin.entity.Notification;
+import com.sweetscoop.admin.service.SseService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/sse")
+@RequiredArgsConstructor
 public class SseController {
 
-    // 연결된 관리자 브라우저 세션들을 저장하는 맵
-    private static final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final SseService sseService;
 
-    // 1. 프론트엔드 연결 엔드포인트
+    // 1. 실시간 SSE 연결 구독 (Role 기반 분기)
     @GetMapping(value = "/connect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter connect(@RequestParam String adminId) {
-        SseEmitter emitter = new SseEmitter(60 * 1000L * 30); // 30분 만료 설정
-        emitters.put(adminId, emitter);
-
-        emitter.onCompletion(() -> emitters.remove(adminId));
-        emitter.onTimeout(() -> emitters.remove(adminId));
-
-        try {
-            // 최초 연결 성공 메시지 발송
-            emitter.send(SseEmitter.event().name("connect").data("실시간 알림 연결 완료"));
-        } catch (IOException e) {
-            emitters.remove(adminId);
-        }
-        return emitter;
+    public SseEmitter connect(
+            @RequestParam("role") String role, 
+            @RequestParam("adminId") String adminId) {
+        return sseService.subscribe(role, adminId);
     }
 
-    // 2. 외부(지점앱 등)에서 알림을 유발할 때 호출하는 메서드 (이벤트 브로드캐스팅)
-    public static void sendNotification(String message) {
-        emitters.forEach((id, emitter) -> {
-            try {
-                emitter.send(SseEmitter.event().name("notification").data(message));
-            } catch (IOException e) {
-                emitters.remove(id);
-            }
-        });
+    // 2. 새로고침 시 기존 알림 목록 조회
+    @GetMapping("/notifications")
+    public ResponseEntity<List<Notification>> getNotifications(@RequestParam("role") String role) {
+        return ResponseEntity.ok(sseService.getNotifications(role));
     }
 }

@@ -1,6 +1,7 @@
 package com.sweetscoop.payment.controller;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
@@ -11,10 +12,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sweetscoop.admin.entity.Promotion;
 import com.sweetscoop.payment.dto.MemberBenefitResponseDTO;
 import com.sweetscoop.payment.dto.PaymentCalculationRequestDTO;
 import com.sweetscoop.payment.dto.PaymentCalculationResponseDTO;
 import com.sweetscoop.payment.dto.PaymentRequestDTO;
+import com.sweetscoop.payment.repository.PaymentMapper;
 import com.sweetscoop.payment.service.PaymentCalculationService;
 import com.sweetscoop.payment.service.PaymentService;
 
@@ -29,6 +32,8 @@ public class PaymentController {
 
     private final PaymentCalculationService
             paymentCalculationService;
+    
+    private final PaymentMapper payment;
 
     /**
      * 전화번호로 회원 포인트와 쿠폰 조회
@@ -46,6 +51,13 @@ public class PaymentController {
                 paymentCalculationService
                         .getMemberBenefits(phoneNumber)
         );
+    }
+    
+    @GetMapping
+    public ResponseEntity<List<Promotion>> getActivePromotions() {
+        // DB의 모든 프로모션 목록 또는 진행 중인 목록 리턴
+        List<Promotion> promotions = payment.findAll();
+        return ResponseEntity.ok(promotions);
     }
 
     /**

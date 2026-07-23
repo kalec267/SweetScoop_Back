@@ -51,6 +51,12 @@ public class AdminCouponController {
         return ResponseEntity.ok(couponService.getAllCoupons());
     }
     
+    // 등록된 미연결 템플릿 쿠폰 목록만 조회 API (대시보드 표출용)
+    @GetMapping("/templates")
+    public ResponseEntity<List<CouponDto>> getCouponTemplates() {
+        return ResponseEntity.ok(couponService.getCouponTemplates());
+    }
+    
     // 템플릿 쿠폰 삭제 API
     @DeleteMapping("/template/{couponId}")
     public ResponseEntity<Void> deleteTemplate(@PathVariable("couponId") Integer couponId) {

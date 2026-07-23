@@ -220,4 +220,30 @@ public class SalesService {
         
         return result;
     }
+    
+    //희조 추가
+    //8. 금일 총 매출 및 주문 건수 집계 서비스 메서드
+    public Map<String, Object> getTodaySalesSummary(Integer branchId) {
+        LocalDateTime start = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+        LocalDateTime end = LocalDateTime.now();
+
+        // 1. DB에서 오늘 매출 데이터 집계 조회
+        List<Object[]> summaryList = (List<Object[]>) salesRepository.getSummaryStats(branchId, start, end);
+        
+        Long totalAmount = 0L;
+        Long totalCount = 0L;
+
+        if (summaryList != null && !summaryList.isEmpty()) {
+            Object[] summary = summaryList.get(0);
+            totalAmount = (summary[0] != null) ? ((Number) summary[0]).longValue() : 0L;
+            totalCount = (summary[1] != null) ? ((Number) summary[1]).longValue() : 0L;
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalAmount", totalAmount);     // 대시보드의 todaySales.value.totalAmount 와 매핑
+        result.put("todaySales", totalAmount);      // fallback 용도
+        result.put("totalCount", totalCount);       // 금일 주문 건수
+        
+        return result;
+    }
 }
