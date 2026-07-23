@@ -27,9 +27,8 @@ import com.sweetscoop.admin.service.CSService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/cs")
+@RequestMapping("/api/cs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
 public class CSController {
 
     private final CSService csService;

@@ -20,71 +20,46 @@ import com.sweetscoop.admin.service.NoticeService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/notice")
+@RequestMapping("/api/notice")
 @RequiredArgsConstructor
 @CrossOrigin
 public class NoticeController {
 
+	private final NoticeService noticeService;
 
-    private final NoticeService noticeService;
+	@PostMapping
+	public Notice save(@RequestBody NoticeRequest request) {
 
+		return noticeService.save(request);
 
+	}
 
-    @PostMapping
-    public Notice save(@RequestBody NoticeRequest request){
+	@GetMapping
+	public List<NoticeResponse> findAll() {
 
-        return noticeService.save(request);
+		return noticeService.findAll();
 
-    }
+	}
 
+	@GetMapping("/{id}")
+	public NoticeResponse findById(@PathVariable Integer id) {
 
+		return noticeService.findById(id);
 
+	}
 
-    @GetMapping
-    public List<NoticeResponse> findAll(){
+	@PutMapping("/{id}")
+	public NoticeResponse update(@PathVariable Integer id, @RequestBody NoticeRequest dto) {
 
-        return noticeService.findAll();
+		return noticeService.update(id, dto);
 
-    }
+	}
 
+	@DeleteMapping("/{id}")
+	public void delete(@PathVariable Integer id) {
 
+		noticeService.delete(id);
 
-
-
-    @GetMapping("/{id}")
-    public NoticeResponse findById(
-            @PathVariable Integer id
-    ){
-
-        return noticeService.findById(id);
-
-    }
-
-
-
-
-
-    @PutMapping("/{id}")
-    public NoticeResponse update(
-            @PathVariable Integer id,
-            @RequestBody NoticeRequest dto
-    ){
-
-        return noticeService.update(id,dto);
-
-    }
-
-
-
-
-
-    @DeleteMapping("/{id}")
-    public void delete(
-            @PathVariable Integer id
-    ){
-
-        noticeService.delete(id);
-
-    }
+	}
 
 }
