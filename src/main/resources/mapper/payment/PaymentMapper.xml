@@ -53,29 +53,24 @@
 
     </insert>
 
-
-    <!-- 현재 가장 큰 대기번호 조회 -->
-    <select
-            id="selectMaxWaitingNo"
-            resultType="java.lang.Integer">
-
-        SELECT COALESCE(MAX(waiting_no), 0)
-        FROM ORDERS
-        WHERE waiting_no IS NOT NULL
-
-    </select>
-
-
-    <!-- 주문 상태 및 대기번호 수정 -->
+	<!-- 주문 상태 및 대기 번호 업데이트 -->
     <update id="updateOrderStatus">
-
         UPDATE ORDERS
-        SET
-            status = #{status},
+        SET status = #{status},
             waiting_no = #{waitingNo}
         WHERE id = #{orderId}
-
     </update>
+
+
+	<!-- 오늘 날짜 기준 가장 큰 대기번호 조회 -->
+	<select id="selectMaxWaitingNo" resultType="java.lang.Integer">
+	
+	    SELECT COALESCE(MAX(waiting_no), 0)
+		FROM ORDERS A
+		WHERE waiting_no IS NOT NULL
+		  AND DATE(CREATED_AT) = CURDATE();
+	      
+	</select>
 
 
     <!-- 결제 완료 영수증 기본 정보 조회 -->

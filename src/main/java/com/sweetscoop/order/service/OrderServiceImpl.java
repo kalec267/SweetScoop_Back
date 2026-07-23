@@ -108,10 +108,16 @@ public class OrderServiceImpl implements OrderService {
 
 	// 주문 삭제
 	@Override
+	@Transactional
 	public void deleteOrder(int id) {
+	    // 1. 자식 및 연관 데이터부터 역순으로 삭제 처리
+	    orderDAO.deleteOrderItemOptionByOrderId(id);
+	    orderDAO.deleteOrderItemMenuByOrderId(id);
+	    orderDAO.deleteOrderItemByOrderId(id);
+	    orderDAO.deletePaymentByOrderId(id); // 💡 결제 데이터 먼저 삭제
 
-		orderDAO.deleteOrder(id);
-
+	    // 2. 최종 부모 주문(ORDERS) 삭제
+	    orderDAO.deleteOrder(id);
 	}
 
 }
