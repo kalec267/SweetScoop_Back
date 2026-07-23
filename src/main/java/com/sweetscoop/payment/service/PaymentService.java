@@ -20,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
 import com.sweetscoop.coupon.entity.Coupon;
 import com.sweetscoop.coupon.repository.CouponRepository;
 import com.sweetscoop.firebase.FirebaseService;
+import com.sweetscoop.inventory.service.InventoryService;
 import com.sweetscoop.member.entity.Member;
 import com.sweetscoop.member.repository.MemberRepository;
 import com.sweetscoop.payment.dto.PaymentCalculationRequestDTO;
@@ -49,6 +50,8 @@ public class PaymentService {
 	private final RestTemplate restTemplate;
 
 	private final FirebaseService firebaseService;
+	
+	private final InventoryService inventoryService;
 
 	/**
 	 * application.properties 또는 환경변수에 설정된 Toss Secret Key
@@ -171,9 +174,41 @@ public class PaymentService {
 		 * 15. 주문 상태 및 대기번호 갱신
 		 */
 		int orderResult = paymentMapper.updateOrderStatus(dto.getOrderId(), "결제완료", waitingNo);
-
+		
 		if (orderResult <= 0) {
 			throw new IllegalStateException("ORDERS 상태 업데이트에 실패했습니다.");
+		}
+		
+		try {
+			List<Map<String, Object>> items = paymentMapper.selectOrderItems(dto.getOrderId());
+			int branchId = convertToInteger(getMapValue(order, "branchId", "branch_id"), 1);
+
+			for (Map<String, Object> item : items) {
+				// 1. sizeId 추출
+				Object sizeIdObj = getMapValue(item, "sizeId", "size_id");
+				Integer sizeId = convertToInteger(sizeIdObj, 0);
+
+				// 2. Mapper에서 새롭게 조회한 menuIds("1,2,3") 추출
+				Object menuIdsObj = getMapValue(item, "menuIds", "menu_ids");
+				List<Integer> selectedMenuIds = new java.util.ArrayList<>();
+
+				if (menuIdsObj != null) {
+					String menuStr = String.valueOf(menuIdsObj);
+					for (String idStr : menuStr.split(",")) {
+						try {
+							selectedMenuIds.add(Integer.parseInt(idStr.trim()));
+						} catch (NumberFormatException ignored) {}
+					}
+				}
+
+				// 3. 재고 차감 실행
+				if (sizeId > 0 && !selectedMenuIds.isEmpty()) {
+					inventoryService.exportStockForOrder(branchId, sizeId, selectedMenuIds);
+				}
+			}
+		} catch (Exception e) {
+			System.err.println("❌ [재고 차감 중 에러 발생]: " + e.getMessage());
+			e.printStackTrace();
 		}
 
 		/*

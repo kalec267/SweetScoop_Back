@@ -161,6 +161,12 @@
 
             s.name AS sizeName,
 
+			GROUP_CONCAT( 
+				DISTINCT oim.menu_id 
+				ORDER BY oim.id 
+				SEPARATOR ',' 
+			) AS menuIds,
+
             GROUP_CONCAT(
                 DISTINCT m.name
                 ORDER BY oim.id
