@@ -1,5 +1,6 @@
 package com.sweetscoop.payment.repository;
 
+import com.sweetscoop.admin.entity.Promotion;
 import com.sweetscoop.payment.dto.PaymentRequestDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -15,4 +16,5 @@ public interface PaymentMapper {
     Map<String, Object> selectReceiptDetails(@Param("orderId") String string);
     List<Map<String, Object>> selectOrderItems(@Param("orderId") String orderId);
     Integer selectMaxWaitingNo();
+	List<Promotion> findAll();
 }

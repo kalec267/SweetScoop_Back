@@ -25,9 +25,20 @@ public class CouponService {
         return couponRepository.findByMemberIdOrderByIdDesc(memberId).stream().map(CouponDto::new).toList();
     }
     
+    //템플릿 쿠폰 전체 조회 메서드
     public List<CouponDto> getAllCoupons() {
         return couponRepository.findAll()
                 .stream()
+                .sorted((a, b) -> b.getId().compareTo(a.getId())) // 최신순 정렬
+                .map(CouponDto::new)
+                .toList();
+    }
+    
+    // 템플릿 쿠폰 목록 조회 메서드
+    public List<CouponDto> getCouponTemplates() {
+        return couponRepository.findAll()
+                .stream()
+                .filter(coupon -> coupon.getMemberId() == null) // 템플릿 쿠폰만 필터링
                 .sorted((a, b) -> b.getId().compareTo(a.getId())) // 최신순 정렬
                 .map(CouponDto::new)
                 .toList();

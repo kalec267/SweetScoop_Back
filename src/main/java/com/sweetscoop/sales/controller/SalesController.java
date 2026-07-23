@@ -23,4 +23,13 @@ public class SalesController {
         Map<String, Object> data = salesService.getDashboardData(branchId, filter);
         return ResponseEntity.ok(data);
     }
+    
+    // 💡 2. 본사/지점 금일 전사 매출 통합 조회 API
+    @GetMapping({"/today", "/dashboard/today"})
+    public ResponseEntity<Map<String, Object>> getTodaySalesSummary(
+            @RequestParam(value = "branchId", required = false) Integer branchId) {
+        
+        Map<String, Object> todaySalesData = salesService.getTodaySalesSummary(branchId);
+        return ResponseEntity.ok(todaySalesData);
+    }
 }
