@@ -165,23 +165,21 @@ public class InventoryService {
         }
 
         // 발주 상태 완료 처리
-        hqOrder.setDeliveryStatus("ARRIVED"); 
-        hqOrder.setApprovalStatus("COMPLETED");
+        hqOrder.setDeliveryStatus("APPROVED"); 
+        hqOrder.setApprovalStatus("준비중");
         hqInventoryRepository.save(hqOrder);
 
-        // 지점 재고 가산
-        ScmBranchInventory branchStock = branchInventoryRepository
-                .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
-                .orElseGet(() -> {
-                    ScmBranchInventory newStock = new ScmBranchInventory();
-                    newStock.setBranchId(hqOrder.getBranchId());
-                    newStock.setItemId(hqOrder.getItemId());
-                    newStock.setStockLevel(0);
-                    return branchInventoryRepository.save(newStock);
-                });
-
-        branchStock.increaseStock(hqOrder.getRequestQuantity());
-        branchInventoryRepository.save(branchStock);
+		/*
+		 * // 지점 재고 가산 ScmBranchInventory branchStock = branchInventoryRepository
+		 * .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
+		 * .orElseGet(() -> { ScmBranchInventory newStock = new ScmBranchInventory();
+		 * newStock.setBranchId(hqOrder.getBranchId());
+		 * newStock.setItemId(hqOrder.getItemId()); newStock.setStockLevel(0); return
+		 * branchInventoryRepository.save(newStock); });
+		 * 
+		 * branchStock.increaseStock(hqOrder.getRequestQuantity());
+		 * branchInventoryRepository.save(branchStock);
+		 */
     }
 
     private void triggerHqAutoOrderFromFactory(ScmItem item) {
@@ -263,5 +261,46 @@ public class InventoryService {
             result.add(map);
         }
         return result;
+    }
+    
+    @Transactional
+    public void updateDeliveryStatus(Integer requestId, String deliveryStatus) {
+        // 1. Direct JPQL 쿼리로 DB 테이블 강제 UPDATE 실행 (update HQINVENTORY set delivery_status=...)
+        int updatedCount = hqInventoryRepository.updateDeliveryStatusDirect(requestId, deliveryStatus);
+
+        if (updatedCount == 0) {
+            throw new IllegalArgumentException("존재하지 않는 배송 요청입니다. ID: " + requestId);
+        }
+
+        // 2. 재고 가산을 위해 해당 발주 건 정보 조회
+        ScmHqInventory hqOrder = hqInventoryRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("배송 요청 조회 실패 ID: " + requestId));
+
+        // 3. '배송완료' 상태일 때만 지점 재고 가산
+        boolean isCompleted = "배송완료".equals(deliveryStatus) 
+                           || "DELIVERED".equalsIgnoreCase(deliveryStatus)
+                           || "ARRIVED".equalsIgnoreCase(deliveryStatus)
+                           || "COMPLETED".equalsIgnoreCase(deliveryStatus);
+
+        if (isCompleted) {
+            ScmBranchInventory branchInv = branchInventoryRepository
+                    .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
+                    .orElseGet(() -> {
+                        ScmBranchInventory newInv = new ScmBranchInventory();
+                        newInv.setBranchId(hqOrder.getBranchId());
+                        newInv.setItemId(hqOrder.getItemId());
+                        newInv.setStockLevel(0);
+                        return newInv;
+                    });
+
+            int newStockLevel = branchInv.getStockLevel() + hqOrder.getRequestQuantity();
+            branchInv.setStockLevel(newStockLevel);
+
+            branchInventoryRepository.save(branchInv);
+
+            System.out.println("🚚 [배송 완료] 지점(" + hqOrder.getBranchId() + 
+                               ") / 원자재(" + hqOrder.getItemId() + 
+                               ") / 충전 수량: " + hqOrder.getRequestQuantity() + "g");
+        }
     }
 }

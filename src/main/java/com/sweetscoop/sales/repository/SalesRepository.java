@@ -86,4 +86,18 @@ public interface SalesRepository extends JpaRepository<Orders, Integer> {
     List<Object[]> getPaymentMethodStats(@Param("branchId") Integer branchId, 
                                          @Param("start") LocalDateTime start, 
                                          @Param("end") LocalDateTime end);
+    
+ // 8. 기간 내 총 원자재 원가 집계 (지점별 / 전체)
+    @Query(value = "SELECT SUM(oi.quantity * IFNULL(i.cost_price, 0)) " +
+                   "FROM ORDERS o " +
+                   "JOIN ORDERITEM oi ON o.id = oi.order_id " +
+                   "JOIN ORDERITEMMENU oim ON oi.id = oim.order_item_id " +
+                   "JOIN MENU m ON oim.menu_id = m.id " +
+                   "JOIN ITEM i ON m.item_id = i.id " +
+                   "WHERE (:branchId = 0 OR o.branch_id = :branchId) AND o.status = '결제완료' " +
+                   "AND o.created_at BETWEEN :start AND :end", 
+           nativeQuery = true)
+    Long getTotalCostStats(@Param("branchId") Integer branchId, 
+                          @Param("start") LocalDateTime start, 
+                          @Param("end") LocalDateTime end);
 }

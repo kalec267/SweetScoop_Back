@@ -15,8 +15,8 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class FirebaseConfig {
 
-	  private static final String FIREBASE_KEY_PATH =
-	            "/app/firebase/serviceAccountKey.json";
+    private static final String FIREBASE_KEY_PATH =
+            "src/main/resources/firebase/serviceAccountKey.json";
 
     @PostConstruct
     public void initialize() {

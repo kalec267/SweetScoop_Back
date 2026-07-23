@@ -43,18 +43,23 @@ public class DashboardController {
     // 2. 하단 재고 신청 현황 리스트 API
     @GetMapping("/inventory/requests")
     public ResponseEntity<List<InventoryRequestListResponse>> getInventoryRequests() {
-        // N+1 문제를 방지하기 위해 이전에 만든 fetch join 쿼리 사용
         List<HqInventory> hqInventories = hqInventoryRepository.findAllWithBranchAndItem();
 
         List<InventoryRequestListResponse> response = hqInventories.stream()
-                .map(h -> InventoryRequestListResponse.builder()
-                        .requestId(h.getId())
-                        .branchName(h.getBranch().getBranchName())
-                        .requestMenu(h.getItem().getItemName()) // 물류 실물품명 매핑
-                        .quantity(h.getRequestQuantity())
-                        .status(h.getApprovalStatus()) // '대기 중', '승인완료', '반려' 등
-                        // 필요 시 배송 상태와 조합하여 '배송 중' 스위칭 가능
-                        .build())
+                .map(h -> {
+                    String currentDeliveryStatus = h.getDeliveryStatus();
+                    String displayStatus = (currentDeliveryStatus != null && !currentDeliveryStatus.isBlank())
+                            ? currentDeliveryStatus
+                            : h.getApprovalStatus();
+
+                    return InventoryRequestListResponse.builder()
+                            .requestId(h.getId())
+                            .branchName(h.getBranch().getBranchName())
+                            .requestMenu(h.getItem().getItemName())
+                            .quantity(h.getRequestQuantity())
+                            .status(displayStatus)
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
