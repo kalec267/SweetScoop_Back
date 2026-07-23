@@ -45,7 +45,7 @@ public class PromotionService {
     @Transactional(readOnly = true)
     public List<PromotionResponse> findAll() {
 
-        return promotionRepository.findAll()
+        return promotionRepository.findAllByOrderByIdDesc()
                 .stream()
                 .map(PromotionResponse::new)
                 .toList();
