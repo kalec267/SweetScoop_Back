@@ -40,4 +40,7 @@ public class Item {
 
     @Column(name = "item_name", nullable = false, length = 50)
     private String itemName;
+    
+    @Column(name = "cost_price")
+    private Integer costPrice;
 }

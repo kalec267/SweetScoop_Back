@@ -69,6 +69,21 @@ public class SalesService {
         }
         Long avgReceipt = totalCount > 0 ? totalSales / totalCount : 0L;
 
+        Long totalCost = salesRepository.getTotalCostStats(branchId, start, end);
+        if (totalCost == null) totalCost = 0L;
+
+        Long netProfit = totalSales - totalCost; // 순이익 = 총 매출액 - 총 원가
+        double profitMargin = 0.0;
+        if (totalSales > 0) {
+            profitMargin = Math.round(((double) netProfit / totalSales * 100) * 10.0) / 10.0; // 마진율 (%)
+        }
+        
+        
+        result.put("cumulativeSales", totalSales);
+        result.put("averageReceipt", avgReceipt);
+        result.put("totalCost", totalCost);          // 총 원가
+        result.put("netProfit", netProfit);          // 순이익
+        result.put("profitMargin", profitMargin);    // 순이익률 (%)
         result.put("cumulativeSales", totalSales);
         result.put("averageReceipt", avgReceipt);
 
