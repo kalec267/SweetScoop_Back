@@ -14,7 +14,7 @@ import com.sweetscoop.payment.model.PaymentVO;
 @Repository
 public class OrderDAOImpl implements OrderDAO {
 
-    private static final String NAMESPACE = "com.sweetscoop.order.mapper.OrderMapper.";
+    private static final String NAMESPACE = "com.sweetscoop.order.repository.OrderDAO.";
 
     @Autowired
     private SqlSession sqlSession;
@@ -62,5 +62,25 @@ public class OrderDAOImpl implements OrderDAO {
     @Override
     public int deleteOrder(int id) {
         return sqlSession.delete(NAMESPACE + "deleteOrder", id);
+    }
+    
+    @Override
+    public void deletePaymentByOrderId(int id) {
+        sqlSession.delete(NAMESPACE + "deletePaymentByOrderId", id);
+    }
+
+    @Override
+    public void deleteOrderItemOptionByOrderId(int id) {
+        sqlSession.delete(NAMESPACE + "deleteOrderItemOptionByOrderId", id);
+    }
+
+    @Override
+    public void deleteOrderItemMenuByOrderId(int id) {
+        sqlSession.delete(NAMESPACE + "deleteOrderItemMenuByOrderId", id);
+    }
+
+    @Override
+    public void deleteOrderItemByOrderId(int id) {
+        sqlSession.delete(NAMESPACE + "deleteOrderItemByOrderId", id);
     }
 }

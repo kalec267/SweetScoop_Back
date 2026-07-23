@@ -16,4 +16,4 @@ public interface OrderService {
     void updateOrderStatus(OrderVO order);
 
     void deleteOrder(int id);
-}
+}	

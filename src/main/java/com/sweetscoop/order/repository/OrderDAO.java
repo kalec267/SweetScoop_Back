@@ -35,5 +35,9 @@ public interface OrderDAO {
     int updateOrderStatus(OrderVO order);
 
     // 주문 삭제(취소)
+    void deletePaymentByOrderId(int id);
+    void deleteOrderItemOptionByOrderId(int id);
+    void deleteOrderItemMenuByOrderId(int id);
+    void deleteOrderItemByOrderId(int id);
     int deleteOrder(int id);
 }

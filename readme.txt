@@ -70,3 +70,25 @@ CORS 수정
 (메뉴관리페이지의 -가격수정 로직 생성)
 [MenuAdminController.java, MenuDetailResponse.java, Menu.java‎]
 >>>>>>> origin/dev1_hj_back
+
+260723
+- 주문취소를 위한 OrderAdminController.java 구현 (admin패키지)
+	/**
+	     * 주문 취소 및 DB 삭제 API
+	     * DELETE /api/admin/orders/{id}
+	     */
+	    @DeleteMapping("/{id}")
+	    public ResponseEntity<Void> deleteOrder(@PathVariable("id") int id) {
+	        try {
+	            orderService.deleteOrder(id); // Service -> DAO -> MyBatis로 ORDERS 테이블 삭제 수행
+	            return ResponseEntity.ok().build();
+	        } catch (Exception e) {
+	            return ResponseEntity.internalServerError().build();
+	        }
+	    }
+    
+	삭제를 위해 OrderDAO.java, OrderDAOImpl.java, OrderService.java, OrderServiceImpl.java, OrderMapper.xml 수정
+	외래키를 먼저 삭제 후 데이터 삭제
+   	
+- 00시마다 웨이팅번호, 주문내역 초기화 스케쥴러 구현 OrderResetScheduler.java
+	PaymentMapper.xml에서 selectMaxWaitingNo 부분을 날짜제한을 둬서 날짜가 넘어갈시 웨이팅번호를 1로 설정
