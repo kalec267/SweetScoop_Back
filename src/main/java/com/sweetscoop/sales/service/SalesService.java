@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -15,26 +17,43 @@ public class SalesService {
 
     private final SalesRepository salesRepository;
 
-    public Map<String, Object> getDashboardData(Integer branchId, String filter) {
-        LocalDateTime end = LocalDateTime.now();
+    public Map<String, Object> getDashboardData(Integer branchId, String filter, String startDateStr, String endDateStr) {
         LocalDateTime start;
-
+        LocalDateTime end;
         int daysPeriod = 1;
-        switch (filter) {
-            case "today":
-                start = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
-                daysPeriod = 1;
-                break;
-            case "7days":
-                start = LocalDateTime.now().minusDays(7);
-                daysPeriod = 7;
-                break;
-            case "30days":
-                start = LocalDateTime.now().minusDays(30);
-                daysPeriod = 30;
-                break;
-            default:
-                start = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+
+        // custom 필터(직접 선택) 및 기존 filter 분기 처리
+        if ("custom".equals(filter) && startDateStr != null && !startDateStr.isBlank() && endDateStr != null && !endDateStr.isBlank()) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate startLocalDate = LocalDate.parse(startDateStr, formatter);
+            LocalDate endLocalDate = LocalDate.parse(endDateStr, formatter);
+
+            start = LocalDateTime.of(startLocalDate, LocalTime.MIN);
+            end = LocalDateTime.of(endLocalDate, LocalTime.MAX);
+
+            // 일수 계산 (예: 7/1~7/1 이면 1일)
+            daysPeriod = (int) ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1;
+            if (daysPeriod <= 0) daysPeriod = 1;
+
+        } else {
+            end = LocalDateTime.now();
+            switch (filter) {
+                case "today":
+                    start = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+                    daysPeriod = 1;
+                    break;
+                case "7days":
+                    start = LocalDateTime.now().minusDays(7);
+                    daysPeriod = 7;
+                    break;
+                case "30days":
+                    start = LocalDateTime.now().minusDays(30);
+                    daysPeriod = 30;
+                    break;
+                default:
+                    start = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+                    daysPeriod = 1;
+            }
         }
 
         Map<String, Object> result = new HashMap<>();
@@ -48,24 +67,53 @@ public class SalesService {
             totalSales = (summary[0] != null) ? ((Number) summary[0]).longValue() : 0L;
             totalCount = (summary[1] != null) ? ((Number) summary[1]).longValue() : 0L;
         }
-        result.put("cumulativeSales", totalSales);
-        result.put("averageReceipt", totalCount > 0 ? totalSales / totalCount : 0L);
+        Long avgReceipt = totalCount > 0 ? totalSales / totalCount : 0L;
 
-        // 2. [차트 1] 상단용: 기간별 전체 매출 통계 추이 수정
+        result.put("cumulativeSales", totalSales);
+        result.put("averageReceipt", avgReceipt);
+
+        // 💡 [추가] 이전 동일 기간(Previous Period) 증감률 계산 로직
+        LocalDateTime prevStart = start.minusDays(daysPeriod);
+        LocalDateTime prevEnd = start;
+
+        List<Object[]> prevSummaryList = (List<Object[]>) salesRepository.getSummaryStats(branchId, prevStart, prevEnd);
+        Long prevTotalSales = 0L;
+        Long prevTotalCount = 0L;
+        if (prevSummaryList != null && !prevSummaryList.isEmpty()) {
+            Object[] prevSummary = prevSummaryList.get(0);
+            prevTotalSales = (prevSummary[0] != null) ? ((Number) prevSummary[0]).longValue() : 0L;
+            prevTotalCount = (prevSummary[1] != null) ? ((Number) prevSummary[1]).longValue() : 0L;
+        }
+        Long prevAvgReceipt = prevTotalCount > 0 ? prevTotalSales / prevTotalCount : 0L;
+
+        // 매출액 성장률 (%)
+        double growthSalesRate = 0.0;
+        if (prevTotalSales > 0) {
+            growthSalesRate = Math.round(((double) (totalSales - prevTotalSales) / prevTotalSales * 100) * 10.0) / 10.0;
+        }
+
+        // 평균 객단가 성장률 (%)
+        double growthReceiptRate = 0.0;
+        if (prevAvgReceipt > 0) {
+            growthReceiptRate = Math.round(((double) (avgReceipt - prevAvgReceipt) / prevAvgReceipt * 100) * 10.0) / 10.0;
+        }
+
+        result.put("growthSalesRate", growthSalesRate);     // 예: 12.4 또는 -3.2
+        result.put("growthReceiptRate", growthReceiptRate); // 예: 2.1 또는 -1.5
+
+        // 2. [차트 1] 상단용: 기간별 전체 매출 통계 추이
         List<Map<String, Object>> periodTrends = new ArrayList<>();
 
         if ("today".equals(filter)) {
             List<Object[]> hourlyRawForPeriod = salesRepository.getHourlySales(branchId, start, end);
             
             Map<Integer, Long> todayMap = new HashMap<>();
-            // 오전 10시 ~ 오후 11시
             for (int i = 10; i <= 23; i++) todayMap.put(i, 0L);
             for (Object[] row : hourlyRawForPeriod) {
                 if (row[0] != null) {
                     todayMap.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
                 }
             }
-            // 오전 10시부터 오후 11시까지만 순서대로 세팅
             for (int i = 10; i <= 23; i++) {
                 Map<String, Object> point = new HashMap<>();
                 point.put("axisLabel", i + "시");
@@ -73,7 +121,7 @@ public class SalesService {
                 periodTrends.add(point);
             }
         } else {
-            // 7일, 30일일 때는 기존처럼 날짜별(일별) 집계
+            // 7일, 30일, 사용자 지정(custom)일 때 일별(Daily) 집계
             List<Object[]> dailyRaw = salesRepository.getDailySales(branchId, start, end);
             for (Object[] row : dailyRaw) {
                 Map<String, Object> point = new HashMap<>();
@@ -84,7 +132,7 @@ public class SalesService {
         }
         result.put("periodTrends", periodTrends);
 
-        // 3. [차트 2] 일/주/월 시간대별 분석
+        // 3. [차트 2] 시간대별 분석 (선택 기간 일수로 나눠서 평균 금액 계산)
         List<Object[]> hourlyRaw = salesRepository.getHourlySales(branchId, start, end);
         Map<Integer, Long> hourlyMap = new HashMap<>();
         for (int i = 10; i < 23; i++) hourlyMap.put(i, 0L);
@@ -99,8 +147,9 @@ public class SalesService {
             Map<String, Object> point = new HashMap<>();
             point.put("axisLabel", i + "시");
             long amount = hourlyMap.get(i);
-            // 7일이나 30일이면 보기 편하게 시간대별 '평균' 값으로 계산
-            point.put("amount", filter.equals("today") ? amount : amount / daysPeriod);
+            
+            // 오늘 하루 조회가 아닌 다일 조회(7일, 30일, custom)일 경우 일평균 환산
+            point.put("amount", "today".equals(filter) ? amount : amount / daysPeriod);
             hourlyChart.add(point);
         }
         result.put("hourlyTrends", hourlyChart);
@@ -132,7 +181,7 @@ public class SalesService {
         }
         result.put("branchRanking", branchRanking);
 
-     // 6. 주문 유형별 통계 가공
+        // 6. 주문 유형별 통계 가공
         List<Object[]> orderTypeRaw = salesRepository.getOrderTypeStats(branchId, start, end);
         List<Map<String, Object>> orderTypes = new ArrayList<>();
         for (Object[] row : orderTypeRaw) {

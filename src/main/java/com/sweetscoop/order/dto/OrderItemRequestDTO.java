@@ -7,6 +7,15 @@ import lombok.Data;
 @Data
 public class OrderItemRequestDTO {
 
+	 /*
+     * ORDERITEM INSERT 후 생성되는 PK
+     */
+    private Integer id;
+
+    /*
+     * ORDERS 테이블의 주문 ID
+     */
+    private Integer orderId;
 
     private Integer cupId;
 
@@ -23,5 +32,6 @@ public class OrderItemRequestDTO {
 
 
     private List<OptionRequestDTO> options;
+    
 
 }
