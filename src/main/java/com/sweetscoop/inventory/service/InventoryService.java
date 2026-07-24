@@ -141,22 +141,21 @@ public class InventoryService {
         ScmHqInventory hqOrder = hqInventoryRepository.findById(hqInventoryId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 발주 건입니다."));
 
-        if ("ARRIVED".equals(hqOrder.getDeliveryStatus()) || "COMPLETED".equals(hqOrder.getApprovalStatus())) {
-            throw new IllegalStateException("이미 처리가 완료된 발주 건입니다.");
+        if ("COMPLETED".equals(hqOrder.getApprovalStatus())) {
+            throw new IllegalStateException("이미 승인 처리가 완료된 발주 건입니다.");
         }
 
         ScmHqStock hqStock = hqStockRepository.findByItemId(hqOrder.getItemId())
                 .orElseThrow(() -> new IllegalArgumentException("본사 창고에 등록되지 않은 물품입니다."));
 
-        // 본사 재고 차감
+        // 1. 본사 창고 재고 차감
         hqStock.decreaseStock(hqOrder.getRequestQuantity());
         hqStockRepository.save(hqStock);
 
-        // ScmItem을 조회해서 categoryId 기반으로 임계치 설정
+        // 2. 본사 재고 부족 시 공장 자동 발주 검사
         ScmItem item = itemRepository.findById(hqOrder.getItemId())
                 .orElseThrow(() -> new IllegalArgumentException("원자재(Item) 정보가 존재하지 않습니다."));
 
-        // categoryId가 2(모찌류)이면 500개, 그 외(아이스크림/원두)는 50,000g 기준
         boolean isMochiCategory = (item.getCategoryId() != null && item.getCategoryId() == 2);
         int threshold = isMochiCategory ? 500 : 50000;
 
@@ -164,22 +163,12 @@ public class InventoryService {
             triggerHqAutoOrderFromFactory(item);
         }
 
-        // 발주 상태 완료 처리
-        hqOrder.setDeliveryStatus("APPROVED"); 
-        hqOrder.setApprovalStatus("준비중");
+        // 3. 승인은 완료('COMPLETED'), 배송은 'PREPARING'(준비중)으로 세팅
+        hqOrder.setApprovalStatus("COMPLETED"); 
+        hqOrder.setDeliveryStatus("PREPARING");
         hqInventoryRepository.save(hqOrder);
 
-		/*
-		 * // 지점 재고 가산 ScmBranchInventory branchStock = branchInventoryRepository
-		 * .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
-		 * .orElseGet(() -> { ScmBranchInventory newStock = new ScmBranchInventory();
-		 * newStock.setBranchId(hqOrder.getBranchId());
-		 * newStock.setItemId(hqOrder.getItemId()); newStock.setStockLevel(0); return
-		 * branchInventoryRepository.save(newStock); });
-		 * 
-		 * branchStock.increaseStock(hqOrder.getRequestQuantity());
-		 * branchInventoryRepository.save(branchStock);
-		 */
+        System.out.println("✔ [발주 승인 성공] 발주#" + hqInventoryId + " -> 승인완료 / 배송 준비중 상태 전환");
     }
 
     private void triggerHqAutoOrderFromFactory(ScmItem item) {
@@ -265,23 +254,26 @@ public class InventoryService {
     
     @Transactional
     public void updateDeliveryStatus(Integer requestId, String deliveryStatus) {
-        // 1. Direct JPQL 쿼리로 DB 테이블 강제 UPDATE 실행 (update HQINVENTORY set delivery_status=...)
-        int updatedCount = hqInventoryRepository.updateDeliveryStatusDirect(requestId, deliveryStatus);
-
-        if (updatedCount == 0) {
-            throw new IllegalArgumentException("존재하지 않는 배송 요청입니다. ID: " + requestId);
-        }
-
-        // 2. 재고 가산을 위해 해당 발주 건 정보 조회
+        // 1. 발주 신청 내역 조회
         ScmHqInventory hqOrder = hqInventoryRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("배송 요청 조회 실패 ID: " + requestId));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 배송 요청입니다. ID: " + requestId));
 
-        // 3. '배송완료' 상태일 때만 지점 재고 가산
+        // 2. 배송완료 문자열 체크 (DELIVERED, ARRIVED, 배송완료 등)
         boolean isCompleted = "배송완료".equals(deliveryStatus) 
                            || "DELIVERED".equalsIgnoreCase(deliveryStatus)
-                           || "ARRIVED".equalsIgnoreCase(deliveryStatus)
-                           || "COMPLETED".equalsIgnoreCase(deliveryStatus);
+                           || "ARRIVED".equalsIgnoreCase(deliveryStatus);
 
+        // 3. 상태값 설정 (화면 매핑 기준인 'ARRIVED' 또는 입력받은 'SHIPPING' 등 적용)
+        if (isCompleted) {
+            hqOrder.setDeliveryStatus("ARRIVED");
+            hqOrder.setApprovalStatus("COMPLETED"); // 승인 완료 연동
+        } else {
+            hqOrder.setDeliveryStatus(deliveryStatus); // PREPARING, SHIPPING 등
+        }
+
+        hqInventoryRepository.save(hqOrder);
+
+        // 4. '배송완료'가 된 시점에만 지점 재고 가산!
         if (isCompleted) {
             ScmBranchInventory branchInv = branchInventoryRepository
                     .findByBranchIdAndItemId(hqOrder.getBranchId(), hqOrder.getItemId())
@@ -293,14 +285,12 @@ public class InventoryService {
                         return newInv;
                     });
 
-            int newStockLevel = branchInv.getStockLevel() + hqOrder.getRequestQuantity();
-            branchInv.setStockLevel(newStockLevel);
-
+            branchInv.increaseStock(hqOrder.getRequestQuantity());
             branchInventoryRepository.save(branchInv);
 
-            System.out.println("🚚 [배송 완료] 지점(" + hqOrder.getBranchId() + 
-                               ") / 원자재(" + hqOrder.getItemId() + 
-                               ") / 충전 수량: " + hqOrder.getRequestQuantity() + "g");
+            System.out.println("🚚 [배송 완료 처리] 지점(#" + hqOrder.getBranchId() + 
+                               ") / 물품(#" + hqOrder.getItemId() + 
+                               ") / +" + hqOrder.getRequestQuantity() + "개 최종 입고 완료!");
         }
     }
 }
